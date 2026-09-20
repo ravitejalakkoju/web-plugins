@@ -11,7 +11,7 @@ import { DEFAULT_PROJECT_ID } from '../db/seed.js';
 import { notFound } from '../lib/errors.js';
 import { createPreviewToken } from '../lib/tokens.js';
 import { renderPreviewPage } from './preview.js';
-import { draftValues, hasUnpublishedChanges, isPublished } from '../services/widget.service.js';
+import { configValues } from '../services/widget.service.js';
 import { templateSummary, widgetDetail, widgetSummary } from './presenters.js';
 import type { AdminRenderer } from './renderer.js';
 
@@ -76,14 +76,9 @@ export const adminPageRoutes: FastifyPluginAsync<AdminPageOptions> = async (app,
       const data: EditorPageData = {
         widget: widgetDetail(found.widget, found.template),
         fields: app.services.widgets.formFieldsFor(found.widget),
-        values: draftValues(found),
-        published: isPublished(found)
-          ? {
-              version: found.config?.version ?? 0,
-              publishedAt: found.config?.publishedAt?.toISOString() ?? null,
-            }
-          : null,
-        hasUnpublishedChanges: hasUnpublishedChanges(found),
+        values: configValues(found),
+        version: found.config?.version ?? 0,
+        publishedAt: found.widget.publishedAt?.toISOString() ?? null,
         installSnippet: app.installSnippet(found.widget.id),
         health: snapshot,
       };

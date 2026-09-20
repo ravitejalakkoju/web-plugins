@@ -56,11 +56,11 @@ export function WidgetListPage({ data }: { data: WidgetsPageData }) {
                       {widget.name}
                     </a>
                     {widget.health ? <StatusBadge status={widget.health.derivedStatus} /> : null}
-                    {widget.hasUnpublishedChanges ? (
-                      <span class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
-                        Unpublished changes
+                    {widget.published ? null : (
+                      <span class="rounded-full bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-700">
+                        Draft
                       </span>
-                    ) : null}
+                    )}
                     <a
                       href={`/admin/widgets/${widget.id}/health`}
                       class="ml-auto text-xs text-ink-500 hover:text-ink-900"
@@ -82,12 +82,10 @@ export function WidgetListPage({ data }: { data: WidgetsPageData }) {
                       <dd class="inline text-ink-700">{widget.chrome ?? '—'}</dd>
                     </div>
                     <div>
-                      <dt class="inline">Published </dt>
+                      <dt class="inline">Config </dt>
                       <dd class="inline text-ink-700">
-                        {widget.published ? `v${widget.version}` : 'no'}
-                        {widget.published && widget.hasUnpublishedChanges ? (
-                          <span class="text-amber-700"> · changes pending</span>
-                        ) : null}
+                        v{widget.version}
+                        {widget.published ? <span class="text-emerald-700"> · live</span> : null}
                       </dd>
                     </div>
                     <div>

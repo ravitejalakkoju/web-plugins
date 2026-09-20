@@ -1,5 +1,5 @@
 {
-  "id": "f504f7ad-8a03-4236-bb52-02e8a4d57c24",
+  "id": "c199db00-226b-4c76-bd6e-230d111ad834",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -425,7 +425,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'active'"
+          "default": "'draft'"
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -516,24 +522,12 @@
           "notNull": true,
           "default": 0
         },
-        "draft_values": {
-          "name": "draft_values",
+        "values": {
+          "name": "values",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
           "default": "'{}'::jsonb"
-        },
-        "published_values": {
-          "name": "published_values",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "published_at": {
-          "name": "published_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         },
         "created_at": {
           "name": "created_at",

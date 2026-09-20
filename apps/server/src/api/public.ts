@@ -59,8 +59,8 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
       const widgetId = request.query.id;
       if (!widgetId) return reply.code(400).send({ error: 'missing id' });
 
-      const includeDraft = canReadDraft(widgetId, request.query.previewToken);
-      const envelope = await app.services.config.getEnvelope(widgetId, { includeDraft });
+      const allowDraft = canReadDraft(widgetId, request.query.previewToken);
+      const envelope = await app.services.config.getEnvelope(widgetId, { allowDraft });
 
       if (!envelope) {
         return reply
@@ -69,7 +69,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
           .send({ error: 'no published config for this widget' });
       }
 
-      reply.header('Cache-Control', includeDraft ? 'no-store' : 'public, max-age=60');
+      reply.header('Cache-Control', allowDraft ? 'no-store' : 'public, max-age=60');
       return envelope;
     },
   );
@@ -80,14 +80,14 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
       const widgetId = request.query.id;
       if (!widgetId) return reply.code(400).send({ error: 'missing id' });
 
-      const includeDraft = canReadDraft(widgetId, request.query.previewToken);
-      const version = await app.services.config.getVersion(widgetId, { includeDraft });
+      const allowDraft = canReadDraft(widgetId, request.query.previewToken);
+      const version = await app.services.config.getVersion(widgetId, { allowDraft });
 
       if (!version) {
         return reply.code(404).header('Cache-Control', 'no-store').send({ error: 'not found' });
       }
 
-      reply.header('Cache-Control', includeDraft ? 'no-store' : 'public, max-age=30');
+      reply.header('Cache-Control', allowDraft ? 'no-store' : 'public, max-age=30');
       return version;
     },
   );

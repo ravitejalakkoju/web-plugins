@@ -8,18 +8,19 @@ export interface TemplateSummary {
   src: string | null;
 }
 
+export type WidgetStatus = 'draft' | 'published';
+
 export interface WidgetSummary {
   id: string;
   name: string;
-  status: string;
+  status: WidgetStatus;
   templateId: string | null;
   templateName: string | null;
   chrome: string | null;
   published: boolean;
-  /** Published revision. 0 means never published. */
+  /** Revision of the config document, bumped on every save. */
   version: number;
   publishedAt: string | null;
-  hasUnpublishedChanges: boolean;
   createdAt: string;
   health: Pick<HealthSnapshot, 'derivedStatus' | 'lastSeenAgoSeconds'> | null;
 }
@@ -27,7 +28,7 @@ export interface WidgetSummary {
 export interface WidgetDetail {
   id: string;
   name: string;
-  status: string;
+  status: WidgetStatus;
   templateId: string | null;
   templateName: string | null;
   createdAt: string;
@@ -41,10 +42,10 @@ export interface WidgetsPageData {
 export interface EditorPageData {
   widget: WidgetDetail;
   fields: FormField[];
-  /** The working copy. Edits are saved back to it and published from it. */
+  /** The one config document. Saving it is what visitors see, once published. */
   values: Record<string, unknown>;
-  published: { version: number; publishedAt: string | null } | null;
-  hasUnpublishedChanges: boolean;
+  version: number;
+  publishedAt: string | null;
   installSnippet: string;
   health: HealthSnapshot;
 }

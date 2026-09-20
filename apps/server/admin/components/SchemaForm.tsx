@@ -1,4 +1,4 @@
-import type { FormField } from '@web-plugins/protocol';
+import type { FormField, FormValidator } from '@web-plugins/protocol';
 import { appendItem, getPath, removeIndex } from '../lib/paths';
 
 export interface SchemaFormProps {
@@ -8,8 +8,23 @@ export interface SchemaFormProps {
   onStructuralChange(next: Record<string, unknown>): void;
 }
 
-const isRequired = (field: FormField): boolean =>
-  Boolean(field.validators?.some((validator) => validator.type === 'required'));
+/** Config values are `unknown` until validated, but inputs need a string. */
+const asText = (value: unknown): string => (typeof value === 'string' ? value : '');
+
+/**
+ * Reads one constraint the schema already carries, so it can be mirrored onto the
+ * native input instead of being discovered only when the server rejects the save.
+ */
+function constraint<T extends FormValidator['type']>(
+  field: FormField,
+  type: T,
+): Extract<FormValidator, { type: T }> | undefined {
+  return field.validators?.find(
+    (validator): validator is Extract<FormValidator, { type: T }> => validator.type === type,
+  );
+}
+
+const isRequired = (field: FormField): boolean => Boolean(constraint(field, 'required'));
 
 /** Empty value for a freshly appended array item, derived from its field shape. */
 function blankFor(field: FormField): unknown {
@@ -71,7 +86,7 @@ function Leaf({
         <select
           id={id}
           class="wp-input"
-          value={typeof value === 'string' ? value : ''}
+          value={asText(value)}
           onChange={(event) => onChange(path, (event.currentTarget as HTMLSelectElement).value)}
         >
           {(field.options ?? []).map((option) => (
@@ -94,7 +109,9 @@ function Leaf({
           rows={3}
           class="wp-input"
           placeholder={field.placeholder}
-          value={typeof value === 'string' ? value : ''}
+          required={isRequired(field)}
+          maxLength={constraint(field, 'maxLength')?.value}
+          value={asText(value)}
           onInput={(event) => onChange(path, (event.currentTarget as HTMLTextAreaElement).value)}
         />
         {note}
@@ -103,7 +120,7 @@ function Leaf({
   }
 
   if (field.type === 'color') {
-    const text = typeof value === 'string' ? value : '';
+    const text = asText(value);
     // A swatch plus the hex, because schema colors are stored as strings and the
     // native picker cannot represent an unset value.
     return (
@@ -120,6 +137,8 @@ function Leaf({
             id={id}
             class="wp-input font-mono"
             placeholder={field.placeholder ?? '#000000'}
+            required={isRequired(field)}
+            pattern={constraint(field, 'pattern')?.value}
             value={text}
             onInput={(event) => onChange(path, (event.currentTarget as HTMLInputElement).value)}
           />
@@ -138,6 +157,9 @@ function Leaf({
           type="number"
           class="wp-input"
           placeholder={field.placeholder}
+          required={isRequired(field)}
+          min={constraint(field, 'min')?.value}
+          max={constraint(field, 'max')?.value}
           value={typeof value === 'number' ? String(value) : ''}
           onInput={(event) => {
             const raw = (event.currentTarget as HTMLInputElement).value;
@@ -157,7 +179,10 @@ function Leaf({
         type={field.type === 'email' ? 'email' : field.type === 'url' ? 'url' : 'text'}
         class="wp-input"
         placeholder={field.placeholder}
-        value={typeof value === 'string' ? value : ''}
+        required={isRequired(field)}
+        minLength={constraint(field, 'minLength')?.value}
+        maxLength={constraint(field, 'maxLength')?.value}
+        value={asText(value)}
         onInput={(event) => onChange(path, (event.currentTarget as HTMLInputElement).value)}
       />
       {note}

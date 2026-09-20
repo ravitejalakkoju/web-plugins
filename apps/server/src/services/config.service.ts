@@ -14,8 +14,8 @@ export interface ConfigEnvelope {
 }
 
 /**
- * Read side of the config contract. Serves the published column only; reading the
- * draft needs a preview token, which the route checks before asking for it.
+ * Read side of the config contract. Serves published widgets only; reading a draft
+ * needs a preview token, which the route checks before asking for it.
  */
 export class ConfigService {
   constructor(
@@ -24,20 +24,19 @@ export class ConfigService {
   ) {}
 
   /**
-   * The document to serve, or null when there is nothing to serve. Unknown widget,
-   * never published, unpublished and disabled all collapse to null on purpose:
-   * from outside they must be indistinguishable.
+   * The document to serve, or null when there is nothing to serve. An unknown
+   * widget and a draft one collapse to null on purpose: from outside they must be
+   * indistinguishable.
    */
   private async resolve(
     widgetId: string,
-    includeDraft: boolean,
+    allowDraft: boolean,
   ): Promise<{ version: number; values: WidgetConfig } | null> {
     const [row] = await this.db
       .select({
         widgetStatus: widget.status,
         version: widgetConfig.version,
-        draftValues: widgetConfig.draftValues,
-        publishedValues: widgetConfig.publishedValues,
+        values: widgetConfig.values,
       })
       .from(widget)
       .innerJoin(widgetConfig, eq(widgetConfig.widgetId, widget.id))
@@ -45,19 +44,16 @@ export class ConfigService {
       .limit(1);
 
     if (!row) return null;
-    if (row.widgetStatus !== WIDGET_STATUS.active) return null;
+    if (!allowDraft && row.widgetStatus !== WIDGET_STATUS.published) return null;
 
-    const values = (includeDraft ? row.draftValues : row.publishedValues) as WidgetConfig | null;
-    if (!values) return null;
-
-    return { version: row.version, values };
+    return { version: row.version, values: row.values as WidgetConfig };
   }
 
   async getEnvelope(
     widgetId: string,
-    options: { includeDraft?: boolean } = {},
+    options: { allowDraft?: boolean } = {},
   ): Promise<ConfigEnvelope | null> {
-    const resolved = await this.resolve(widgetId, options.includeDraft === true);
+    const resolved = await this.resolve(widgetId, options.allowDraft === true);
     if (!resolved) return null;
 
     return {
@@ -75,9 +71,9 @@ export class ConfigService {
 
   async getVersion(
     widgetId: string,
-    options: { includeDraft?: boolean } = {},
+    options: { allowDraft?: boolean } = {},
   ): Promise<{ widgetId: string; version: number } | null> {
-    const resolved = await this.resolve(widgetId, options.includeDraft === true);
+    const resolved = await this.resolve(widgetId, options.allowDraft === true);
     if (!resolved) return null;
     return { widgetId, version: resolved.version };
   }

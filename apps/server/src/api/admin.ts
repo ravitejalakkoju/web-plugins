@@ -3,12 +3,8 @@ import { templateSummary, widgetDetail, widgetSummary } from '../admin/presenter
 import { DEFAULT_PROJECT_ID } from '../db/seed.js';
 import { notFound } from '../lib/errors.js';
 import { createPreviewToken } from '../lib/tokens.js';
-import {
-  draftValues,
-  hasUnpublishedChanges,
-  isPublished,
-  publishedValues,
-} from '../services/widget.service.js';
+import { WIDGET_STATUS, type WidgetStatus } from '../db/schema.js';
+import { configValues } from '../services/widget.service.js';
 import { requireAuth } from './auth.js';
 
 const createWidgetSchema = {
@@ -26,7 +22,7 @@ const updateWidgetSchema = {
   additionalProperties: false,
   properties: {
     name: { type: 'string', minLength: 1, maxLength: 120 },
-    status: { type: 'string', enum: ['active', 'disabled'] },
+    status: { type: 'string', enum: [WIDGET_STATUS.draft, WIDGET_STATUS.published] },
   },
 } as const;
 
@@ -95,30 +91,29 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
     return {
       widget: widgetDetail(found.widget, found.template),
-      values: draftValues(found),
-      published: isPublished(found)
-        ? {
-            version: found.config?.version ?? 0,
-            values: publishedValues(found),
-            publishedAt: found.config?.publishedAt?.toISOString() ?? null,
-          }
-        : null,
-      hasUnpublishedChanges: hasUnpublishedChanges(found),
+      values: configValues(found),
+      version: found.config?.version ?? 0,
+      publishedAt: found.widget.publishedAt?.toISOString() ?? null,
       installSnippet: app.installSnippet(found.widget.id),
     };
   });
 
-  app.patch<{ Params: { id: string }; Body: { name?: string; status?: 'active' | 'disabled' } }>(
+  /** Renaming and publishing, the latter being nothing more than a status change. */
+  app.patch<{ Params: { id: string }; Body: { name?: string; status?: WidgetStatus } }>(
     '/api/widgets/:id',
     { schema: { body: updateWidgetSchema } },
     async (request) => {
       if (request.body.name) {
         await app.services.widgets.renameWidget(request.params.id, request.body.name);
       }
-      if (request.body.status) {
-        await app.services.widgets.setStatus(request.params.id, request.body.status);
-      }
-      return { ok: true };
+      if (!request.body.status) return { ok: true as const };
+
+      const updated = await app.services.widgets.setStatus(request.params.id, request.body.status);
+      return {
+        ok: true as const,
+        status: updated.widget.status,
+        publishedAt: updated.widget.publishedAt?.toISOString() ?? null,
+      };
     },
   );
 
@@ -135,7 +130,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return {
       schema: app.services.widgets.schemaFor(found.widget),
       fields: app.services.widgets.formFieldsFor(found.widget),
-      values: draftValues(found),
+      values: configValues(found),
     };
   });
 
@@ -143,23 +138,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     '/api/widgets/:id/config',
     { schema: { body: saveConfigSchema } },
     async (request) => {
-      const saved = await app.services.widgets.saveDraft(request.params.id, request.body.values);
-      return { values: draftValues(saved), hasUnpublishedChanges: hasUnpublishedChanges(saved) };
+      const saved = await app.services.widgets.saveConfig(request.params.id, request.body.values);
+      return { values: configValues(saved), version: saved.config?.version ?? 0 };
     },
   );
-
-  app.post<{ Params: { id: string } }>('/api/widgets/:id/publish', async (request) => {
-    const published = await app.services.widgets.publish(request.params.id);
-    return {
-      version: published.config?.version ?? 0,
-      publishedAt: published.config?.publishedAt?.toISOString() ?? null,
-    };
-  });
-
-  app.post<{ Params: { id: string } }>('/api/widgets/:id/unpublish', async (request) => {
-    await app.services.widgets.unpublish(request.params.id);
-    return { ok: true };
-  });
 
   app.get<{ Params: { id: string } }>('/api/widgets/:id/health', async (request) => {
     const snapshot = await app.services.health.getSnapshot(request.params.id);

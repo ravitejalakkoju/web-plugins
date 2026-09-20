@@ -38,6 +38,13 @@ export const widgetTemplate = pgTable('widget_template', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const WIDGET_STATUS = {
+  draft: 'draft',
+  published: 'published',
+} as const;
+
+export type WidgetStatus = (typeof WIDGET_STATUS)[keyof typeof WIDGET_STATUS];
+
 export const widget = pgTable(
   'widget',
   {
@@ -53,8 +60,14 @@ export const widget = pgTable(
      * template never invalidates a live widget.
      */
     schema: json('schema').notNull().default({}),
-    /** `active` or `disabled`. A disabled widget serves no config. */
-    status: text('status').notNull().default('active'),
+    /**
+     * `draft` or `published`, and the only thing that decides whether `/v1/config`
+     * serves this widget. A widget starts as a draft, because template defaults
+     * are rarely complete enough to put in front of visitors.
+     */
+    status: text('status').$type<WidgetStatus>().notNull().default(WIDGET_STATUS.draft),
+    /** When it last went live. Null while it has never been published. */
+    publishedAt: timestamp('published_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -62,10 +75,9 @@ export const widget = pgTable(
 );
 
 /**
- * Exactly one config row per widget, holding the two documents that matter: the
- * working copy being edited and the copy `/v1/config` serves. Publishing is a
- * copy from one column to the other, so there is no version history to prune and
- * no status enum to keep consistent.
+ * Exactly one config document per widget. There is no separate published copy:
+ * saving a published widget changes what visitors get, which is why the panel
+ * saves on an explicit action rather than on a keystroke.
  */
 export const widgetConfig = pgTable('widget_config', {
   widgetId: text('widget_id')
@@ -75,17 +87,13 @@ export const widgetConfig = pgTable('widget_config', {
     .notNull()
     .references(() => project.id, { onDelete: 'cascade' }),
   /**
-   * Published revision, 0 until the first publish. It moves only on publish
-   * because the runtime polls `/v1/config/version` and refetches the document
-   * whenever this number changes - bumping it per keystroke would make every
-   * visitor re-download a config that is not live yet.
+   * Bumped on every save. The runtime polls `/v1/config/version` and refetches the
+   * document whenever this number changes, so it is a revision counter rather than
+   * a release number.
    */
   version: integer('version').notNull().default(0),
-  /** The working copy. Always present: a widget is created with its defaults. */
-  draftValues: jsonb('draft_values').notNull().default({}),
-  /** What visitors get. Null means unpublished, which `/v1/config` serves as 404. */
-  publishedValues: jsonb('published_values'),
-  publishedAt: timestamp('published_at', { withTimezone: true }),
+  /** Always present: a widget is created with its template defaults. */
+  values: jsonb('values').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -211,8 +219,3 @@ export type WidgetConfigRow = typeof widgetConfig.$inferSelect;
 export type WidgetHealthRow = typeof widgetHealth.$inferSelect;
 export type VisitorSessionRow = typeof visitorSession.$inferSelect;
 export type VisitorEventRow = typeof visitorEvent.$inferSelect;
-
-export const WIDGET_STATUS = {
-  active: 'active',
-  disabled: 'disabled',
-} as const;

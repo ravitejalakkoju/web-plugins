@@ -22,7 +22,7 @@ src/
     html.ts         the HTML shell and state serialization
     presenters.ts   row → view model
   services/
-    widget.service.ts   CRUD, draft/publish, schema composition
+    widget.service.ts   CRUD, publishing, schema composition
     config.service.ts   the public read side
     health.service.ts   heartbeat ingest and status derivation
   db/

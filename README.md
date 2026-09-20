@@ -3,8 +3,8 @@
 Put a widget on someone else's website, then change it without asking them to touch their code again.
 
 Web Plugins is the boring half of that problem, solved once: one `<script>` tag, a shadow-DOM host
-that owns placement and visibility, an iframe boundary with a typed RPC bridge, versioned config with
-a draft/publish flow, and install health reporting. What the widget _is_ — a WhatsApp button, a
+that owns placement and visibility, an iframe boundary with a typed RPC bridge, versioned config you
+publish when it is ready, and install health reporting. What the widget _is_ — a WhatsApp button, a
 support panel, an email popup — is a row in a table and a JSON Schema, not a subclass and not a
 separate bundle.
 
@@ -51,7 +51,7 @@ Then:
    `ADMIN_PASSWORD` from `.env` (`admin@example.com` / `admin` by default).
 2. Create a widget from the **Hello widget (example)** template.
 3. Edit config in the left pane. The preview on the right updates as you type — it is the real
-   runtime, rendering a real draft.
+   runtime, rendering the real config. Nothing is written until you hit **Save**.
 4. Hit **Publish**, copy the install snippet.
 5. Open [localhost:5173](http://localhost:5173), paste the widget id, and load it. The launcher
    appears, the panel opens the example widget, and the widget reports `LIVE` health within one

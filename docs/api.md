@@ -27,7 +27,7 @@ query parameters:
 | `mode=auto`      | Default. Mount and initialize immediately                                                                       |
 | `mode=manual`    | Mount but wait for `WebPlugins.get(id).init()`                                                                  |
 | `mode=preview`   | Editor mode: accept config over `postMessage`, suppress analytics                                               |
-| `previewToken=…` | Read the draft instead of the published config                                                                  |
+| `previewToken=…` | Read a widget that is still a draft                                                                             |
 | `api=https://…`  | Override the derived API base, for CDN installs where the bundle and the control plane are on different origins |
 
 With `RUNTIME_BUNDLE_URL` set, this route 302s to `${RUNTIME_BUNDLE_URL}/widget.js` instead of
@@ -49,10 +49,10 @@ The published config, plus what the runtime needs to talk to the rest of the pla
 `Cache-Control: public, max-age=60`. The version is stamped inside `config` as well, because the
 runtime forwards it to the iframe and reports it on every heartbeat.
 
-Returns 404 when there is nothing to serve, which covers all four cases that look identical from the
-outside: unknown widget, never published, unpublished, or `status: disabled`.
+Returns 404 when there is nothing to serve, which covers both cases that look identical from the
+outside: an unknown widget and one whose `status` is `draft`.
 
-With a valid `previewToken` the draft is served instead and the response becomes `no-store`.
+With a valid `previewToken` a draft is served too, and the response becomes `no-store`.
 
 ### `GET /v1/config/version?id=WIDGET_ID`
 
@@ -154,29 +154,31 @@ Two guards run before anything else:
 | Route                     | Returns                                                                                                                                            |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /api/templates`      | Available templates with their name, description, chrome, and `src` (null when the template has no default)                                        |
-| `GET /api/widgets`        | Every widget in the project with its publish state and derived health                                                                              |
-| `POST /api/widgets`       | `{ name, templateId }` → `201 { id }`. The draft starts as the template defaults                                                                   |
-| `GET /api/widgets/:id`    | Widget, the draft `values`, the published snapshot (with `version` and `publishedAt`, or `null`), `hasUnpublishedChanges`, and the install snippet |
-| `PATCH /api/widgets/:id`  | `{ name?, status? }` where status is `active` or `disabled`                                                                                        |
-| `DELETE /api/widgets/:id` | Deletes the widget and its configs                                                                                                                 |
+| `GET /api/widgets`        | Every widget in the project with its status and derived health                                                                     |
+| `POST /api/widgets`       | `{ name, templateId }` → `201 { id }`. Created as a draft holding the template defaults                                           |
+| `GET /api/widgets/:id`    | Widget (including `status`), its `values`, `version`, `publishedAt`, and the install snippet                                       |
+| `PATCH /api/widgets/:id`  | `{ name?, status? }` where status is `draft` or `published`. Publishing revalidates and answers `422` on an invalid config         |
+| `DELETE /api/widgets/:id` | Deletes the widget and its config                                                                                                 |
 
 ### Config
 
-| Route                             | Behavior                                                                                                                                         |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GET /api/widgets/:id/form`       | `{ schema, fields, values }` — the composed JSON Schema _and_ the derived field list, so the panel never hardcodes a form. `values` is the draft |
-| `PUT /api/widgets/:id/config`     | `{ values }`. Validates, then overwrites the draft. `422` with per-field details on invalid input. Returns `{ values, hasUnpublishedChanges }`   |
-| `POST /api/widgets/:id/publish`   | Revalidates the draft, copies it over the published snapshot, and increments `version` → `{ version, publishedAt }`                              |
-| `POST /api/widgets/:id/unpublish` | Clears the published snapshot, so `/v1/config` starts 404ing. The draft is untouched, so publishing again restores it                            |
+| Route                         | Behavior                                                                                                                                  |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/widgets/:id/form`   | `{ schema, fields, values }` — the composed JSON Schema _and_ the derived field list, so the panel never hardcodes a form                 |
+| `PUT /api/widgets/:id/config` | `{ values }`. Validates, overwrites the document and bumps `version`. `422` with per-field details on invalid input → `{ values, version }` |
 
-A widget holds exactly two config documents: one draft and one published snapshot.
-Saving never touches what visitors see, and publishing is a copy from the first to the
-second. There is no revision history, so **publishing is not reversible** — unpublish
-takes the widget offline but does not restore the previous values.
+A widget has exactly one config document, and `status` decides whether visitors get
+it. So **saving a published widget is live immediately** — there is no staging copy to
+promote. The panel therefore saves on an explicit action rather than on a keystroke.
 
-`version` is the published revision and moves only on publish, because it is what
-`/v1/config/version` reports and what every installed runtime polls. It keeps climbing
-across an unpublish and republish, so a cached config is never mistaken for a current one.
+Publishing is nothing more than `PATCH { status: 'published' }`, and unpublishing is
+the same call with `draft`. Neither touches the document, so unpublishing and
+republishing serves exactly what was there before.
+
+`version` is a revision counter on that document: it moves on every save, because it
+is what `/v1/config/version` reports and what every installed runtime polls to decide
+whether to refetch. It never resets, so a cached config is never mistaken for a
+current one.
 
 Validation errors look like this, which is what the form renders inline:
 

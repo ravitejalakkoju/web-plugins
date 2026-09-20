@@ -24,9 +24,9 @@ Core keys are defined and validated by `@web-plugins/protocol`
 the platform: only the widget's own schema says what belongs in them, and the runtime hands them to
 the iframe untouched.
 
-`version` is also present on a served config, stamped by the server. It is the published revision and
-moves only when you publish, which is what installed runtimes poll to decide whether to refetch. It is
-hidden in the admin form and you never set it by hand.
+`version` is also present on a served config, stamped by the server. It is a revision counter that
+moves on every save, which is what installed runtimes poll to decide whether to refetch. It is hidden
+in the admin form and you never set it by hand.
 
 ## Core keys
 
@@ -168,9 +168,10 @@ so a typo in a key name fails the save instead of silently doing nothing.
 `buildWidgetConfigSchema(parts)` composes the full schema: core keys, plus the template's `launcher`
 additions, `view`, and `meta`. Ajv validates against it in three places, all the same schema:
 
-1. **Draft save** — invalid values are rejected with per-field errors, so the panel shows them while
-   editing rather than at publish time.
-2. **Publish** — revalidated, because the schema may have changed since the draft was written.
+1. **Save** — invalid values are rejected with per-field errors, so the panel shows them while
+   editing rather than once the widget is already live.
+2. **Publish** — revalidated, which catches the one config a save never saw: the template defaults a
+   widget is created with.
 3. **Health** — `isConfigComplete()` decides whether a widget shows as `CONFIG_REQUIRED`.
 
 Each widget stores a **snapshot** of its template's schema parts at creation time. Editing a template

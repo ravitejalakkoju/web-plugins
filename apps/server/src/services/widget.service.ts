@@ -16,6 +16,7 @@ import {
   widgetTemplate,
   type Widget,
   type WidgetConfigRow,
+  type WidgetStatus,
   type WidgetTemplate,
 } from '../db/schema.js';
 import { shortId } from '../lib/ids.js';
@@ -30,36 +31,19 @@ export interface WidgetRecord {
   config: WidgetConfigRow | null;
 }
 
-/**
- * The values being edited. This is what the panel loads and what publish promotes.
- */
-export const draftValues = (record: WidgetRecord): ConfigValues =>
-  (record.config?.draftValues ?? {}) as ConfigValues;
+/** The widget's one config document, which is both what the panel edits and what visitors get. */
+export const configValues = (record: WidgetRecord): ConfigValues =>
+  (record.config?.values ?? {}) as ConfigValues;
+
+export const isPublished = (record: WidgetRecord): boolean =>
+  record.widget.status === WIDGET_STATUS.published;
 
 /**
- * The values visitors receive, or null when the widget is unpublished. Deliberately
- * a different function from `draftValues`: which of the two a caller wants is a
- * decision, not a fallback, and reading the wrong one either leaks unpublished
- * edits or shows the operator stale fields.
- */
-export const publishedValues = (record: WidgetRecord): ConfigValues | null =>
-  (record.config?.publishedValues ?? null) as ConfigValues | null;
-
-export const isPublished = (record: WidgetRecord): boolean => publishedValues(record) !== null;
-
-/** Whether the working copy has drifted from what is live. */
-export function hasUnpublishedChanges(record: WidgetRecord): boolean {
-  const published = publishedValues(record);
-  if (!published) return Boolean(record.config);
-  return JSON.stringify(draftValues(record)) !== JSON.stringify(published);
-}
-
-/**
- * Widget CRUD plus the draft-to-publish flow.
+ * Widget CRUD plus publishing.
  *
- * One mutable draft and one published snapshot per widget. Publishing copies the
- * draft across and bumps `version`; unpublishing clears the snapshot. There are no
- * archived revisions, so a widget's config never accumulates rows.
+ * One config document per widget, and `widget.status` decides whether visitors
+ * see it. So a save to a published widget is live immediately, and publishing is
+ * a status change rather than a copy between columns.
  */
 export class WidgetService {
   constructor(private readonly db: Database) {}
@@ -115,7 +99,7 @@ export class WidgetService {
     return { widget: row.widget, template: row.widget_template, config: row.widget_config };
   }
 
-  /** Create a widget from a template, with the template defaults as its draft. */
+  /** Create a widget from a template. It starts as a draft holding the template defaults. */
   async createWidget(input: {
     projectId: string;
     name: string;
@@ -133,13 +117,13 @@ export class WidgetService {
       name: input.name,
       templateId: template.id,
       schema: template.schema,
-      status: WIDGET_STATUS.active,
+      status: WIDGET_STATUS.draft,
     });
 
     await this.db.insert(widgetConfig).values({
       widgetId,
       projectId: input.projectId,
-      draftValues: {
+      values: {
         ...defaults,
         chrome: defaults.chrome ?? template.chrome,
         src: defaults.src ?? template.src,
@@ -158,11 +142,33 @@ export class WidgetService {
       .where(eq(widget.id, widgetId));
   }
 
-  async setStatus(widgetId: string, status: 'active' | 'disabled'): Promise<void> {
-    await this.db
+  /**
+   * Publish or unpublish. Publishing validates first: a widget created from template
+   * defaults has never been through `saveConfig`, and defaults are not necessarily a
+   * complete config.
+   */
+  async setStatus(widgetId: string, status: WidgetStatus): Promise<WidgetRecord> {
+    const found = await this.getWidget(widgetId);
+    if (!found) throw notFound(`widget "${widgetId}" does not exist`);
+
+    if (status === WIDGET_STATUS.published) {
+      const errors = this.validate(found.widget, configValues(found));
+      if (errors.length) throw unprocessable('cannot publish an invalid config', errors);
+    }
+
+    const now = new Date();
+    const [updated] = await this.db
       .update(widget)
-      .set({ status, updatedAt: new Date() })
-      .where(eq(widget.id, widgetId));
+      .set({
+        status,
+        // Left alone when unpublishing, so the panel can still say when it was last live.
+        ...(status === WIDGET_STATUS.published ? { publishedAt: now } : {}),
+        updatedAt: now,
+      })
+      .where(eq(widget.id, widgetId))
+      .returning();
+
+    return { ...found, widget: updated! };
   }
 
   async deleteWidget(widgetId: string): Promise<void> {
@@ -176,10 +182,11 @@ export class WidgetService {
   }
 
   /**
-   * Save the working copy. Invalid values are rejected here rather than at publish
-   * time so the panel can show field errors while editing.
+   * Write the config document. Invalid values are rejected here rather than at
+   * publish time so the panel can show field errors while editing, and `version`
+   * moves so every installed runtime picks the change up on its next poll.
    */
-  async saveDraft(widgetId: string, values: unknown): Promise<WidgetRecord> {
+  async saveConfig(widgetId: string, values: unknown): Promise<WidgetRecord> {
     const found = await this.getWidget(widgetId);
     if (!found) throw notFound(`widget "${widgetId}" does not exist`);
 
@@ -187,61 +194,25 @@ export class WidgetService {
     if (errors.length) throw unprocessable('config is invalid', errors);
 
     const now = new Date();
-    const draft = values as ConfigValues;
+    const next = values as ConfigValues;
 
     const [saved] = await this.db
       .insert(widgetConfig)
       .values({
         widgetId,
         projectId: found.widget.projectId,
-        draftValues: draft,
+        values: next,
+        version: 1,
         updatedAt: now,
       })
       .onConflictDoUpdate({
         target: widgetConfig.widgetId,
-        set: { draftValues: draft, updatedAt: now },
+        // Incremented in SQL rather than from the row just read, so two saves
+        // racing cannot both land on the same version.
+        set: { values: next, version: sql`${widgetConfig.version} + 1`, updatedAt: now },
       })
       .returning();
 
     return { ...found, config: saved! };
-  }
-
-  /**
-   * Promote the draft. `version` moves here and only here, which is the signal
-   * every installed runtime polls for.
-   */
-  async publish(widgetId: string): Promise<WidgetRecord> {
-    const found = await this.getWidget(widgetId);
-    if (!found) throw notFound(`widget "${widgetId}" does not exist`);
-    if (!found.config) throw unprocessable('nothing to publish: this widget has no draft');
-
-    const values = draftValues(found);
-    const errors = this.validate(found.widget, values);
-    if (errors.length) throw unprocessable('cannot publish an invalid config', errors);
-
-    const now = new Date();
-
-    const [updated] = await this.db
-      .update(widgetConfig)
-      .set({
-        publishedValues: values,
-        // Incremented in SQL rather than from the row we just read, so two
-        // publishes racing cannot both land on the same version.
-        version: sql`${widgetConfig.version} + 1`,
-        publishedAt: now,
-        updatedAt: now,
-      })
-      .where(eq(widgetConfig.widgetId, widgetId))
-      .returning();
-
-    return { ...found, config: updated! };
-  }
-
-  /** Take the widget offline. The draft is untouched, so publishing restores it. */
-  async unpublish(widgetId: string): Promise<void> {
-    await this.db
-      .update(widgetConfig)
-      .set({ publishedValues: null, publishedAt: null, updatedAt: new Date() })
-      .where(eq(widgetConfig.widgetId, widgetId));
   }
 }

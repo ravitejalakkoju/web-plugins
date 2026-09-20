@@ -1,3 +1,5 @@
+import type { WidgetStatus } from '../types';
+
 /** Thin wrapper over the admin API: same-origin, cookie session, JSON in and out. */
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, {
@@ -37,18 +39,20 @@ export const api = {
     request<{ id: string }>('POST', '/api/widgets', { name, templateId }),
   renameWidget: (id: string, name: string) =>
     request<{ ok: true }>('PATCH', `/api/widgets/${id}`, { name }),
-  setStatus: (id: string, status: 'active' | 'disabled') =>
-    request<{ ok: true }>('PATCH', `/api/widgets/${id}`, { status }),
   deleteWidget: (id: string) => request<{ ok: true }>('DELETE', `/api/widgets/${id}`),
-  saveDraft: (id: string, values: Record<string, unknown>) =>
-    request<{ values: Record<string, unknown>; hasUnpublishedChanges: boolean }>(
+  saveConfig: (id: string, values: Record<string, unknown>) =>
+    request<{ values: Record<string, unknown>; version: number }>(
       'PUT',
       `/api/widgets/${id}/config`,
       { values },
     ),
-  publish: (id: string) =>
-    request<{ version: number; publishedAt: string | null }>('POST', `/api/widgets/${id}/publish`),
-  unpublish: (id: string) => request<{ ok: true }>('POST', `/api/widgets/${id}/unpublish`),
+  /** Publishing and unpublishing are the same call: a widget is either a draft or live. */
+  setStatus: (id: string, status: WidgetStatus) =>
+    request<{ ok: true; status: WidgetStatus; publishedAt: string | null }>(
+      'PATCH',
+      `/api/widgets/${id}`,
+      { status },
+    ),
   health: (id: string) =>
     request<import('@web-plugins/protocol').HealthSnapshot>('GET', `/api/widgets/${id}/health`),
   previewToken: (id: string) =>

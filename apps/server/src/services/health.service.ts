@@ -10,9 +10,8 @@ import { eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.js';
 import { widget, widgetHealth, type WidgetHealthRow } from '../db/schema.js';
 import {
+  configValues,
   isPublished,
-  publishedValues,
-  draftValues,
   type WidgetRecord,
   type WidgetService,
 } from './widget.service.js';
@@ -102,16 +101,12 @@ export class HealthService {
   /**
    * Turn a config record and its heartbeat row into a status. The only place the
    * rules live, so the list badge and the detail view can never disagree.
-   *
-   * Completeness is judged against whichever document is live, falling back to the
-   * draft for a widget that has never been published - otherwise an unpublished
-   * widget would always read as incomplete and hide the real reason it is offline.
    */
   private derive(record: WidgetRecord, row: WidgetHealthRow | undefined): DerivedHealth {
     const lastSeenAt = row?.lastSeenAt ?? null;
     const configDeployed = isPublished(record);
     const configComplete = isConfigComplete(
-      publishedValues(record) ?? draftValues(record),
+      configValues(record),
       this.widgets.schemaFor(record.widget),
     );
 

@@ -58,7 +58,7 @@ frozen in the editor.
 client.meta; // { widgetId, mode, hostOrigin, sourceUrl, version, previewToken, ... }
 // mode is 'auto' | 'manual' | 'preview'
 client.currentConfig; // the config, or null before connect()
-client.configVersion; // published version currently rendered
+client.configVersion; // revision of the config currently rendered
 
 await client.open(); // ask the host to open its chrome
 await client.close();

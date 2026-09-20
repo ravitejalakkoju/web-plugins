@@ -90,19 +90,20 @@ pnpm db:migrate      # or just restart the server
 | ----------------- | ------------------------------------------------------------------------------------- |
 | `project`         | One row for a self-host install, and the `projectId` every other table carries        |
 | `widget_template` | The starter kinds: name, chrome, src, schema parts, defaults                          |
-| `widget`          | The public short id from the script URL, plus a **snapshot** of its template's schema |
-| `widget_config`   | One row per widget: `draft_values`, `published_values`, and the published `version`   |
+| `widget`          | The public short id from the script URL, its `status`, and a **snapshot** of its template's schema |
+| `widget_config`   | One row per widget: the one `values` document and its `version`                        |
 | `widget_health`   | Last heartbeat per widget, one row, upserted                                          |
 | `visitor_session` | One row per visitor: traits from `identify`, plus IP, user agent and a restore id     |
 | `visitor_event`   | Events widgets report against a session. Write-only so far; nothing reads them yet    |
 
-Two properties worth relying on. First, `widget.schema` is a snapshot: editing a template never
-invalidates a live widget's config. Second, saving and publishing write different columns, so editing
-a live widget cannot disturb what visitors are already being served.
+One property worth relying on: `widget.schema` is a snapshot, so editing a template never
+invalidates a live widget's config.
 
-What this shape deliberately gives up is history. Publishing overwrites `published_values`, so there
-is no previous revision to roll back to — take a database backup before a risky change if you need
-one. Unpublishing clears `published_values` and takes the widget offline, but leaves the draft alone.
+One worth watching: there is a single `values` document per widget, and `widget.status` is the only
+thing gating it. So **saving a published widget changes what visitors get immediately**, and there is
+no previous revision to roll back to — take a database backup before a risky change if you need one.
+The panel saves on an explicit button rather than while you type for exactly this reason.
+Unpublishing only flips `status`, so republishing serves the same document as before.
 
 Back up `project`, `widget`, `widget_template`, and `widget_config`. `widget_health` is derived from
 traffic and will rebuild itself within a heartbeat of the next page view.

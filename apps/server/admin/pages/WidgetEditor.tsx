@@ -1,172 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { Preview } from '../components/Preview';
 import { SchemaForm } from '../components/SchemaForm';
 import { Alert, CopyField, Shell, StatusBadge } from '../components/ui';
-import { api } from '../lib/api';
-import { setPath } from '../lib/paths';
+import { type SaveState, useWidgetEditor } from '../lib/useWidgetEditor';
 import type { EditorPageData } from '../types';
-
-type SaveState = 'clean' | 'dirty' | 'saving' | 'saved' | 'error';
 
 const SAVE_LABELS: Record<SaveState, string> = {
   clean: 'All changes saved',
   dirty: 'Unsaved changes',
   saving: 'Saving…',
-  saved: 'Draft saved',
+  saved: 'Saved',
   error: 'Save failed',
 };
 
 export function WidgetEditorPage({ data }: { data: EditorPageData }) {
-  const [values, setValues] = useState<Record<string, unknown>>(data.values);
-  const [saveState, setSaveState] = useState<SaveState>('clean');
-  const [error, setError] = useState<string | null>(null);
-  const [published, setPublished] = useState(data.published);
-  const [dirtySincePublish, setDirtySincePublish] = useState(data.hasUnpublishedChanges);
-  const [busy, setBusy] = useState(false);
-
-  const timer = useRef<number | null>(null);
-  const pending = useRef<Record<string, unknown> | null>(null);
-  /** Whether the last save attempt failed, so publish can refuse to run. */
-  const unsaved = useRef(false);
-  /** The save currently on the wire, so publish never runs ahead of one. */
-  const inFlight = useRef<Promise<boolean> | null>(null);
-
-  /**
-   * Sends the queued draft and reports whether the server now holds what the form
-   * shows. Publish depends on that answer being true only when it really is, so
-   * this waits for a save already in flight rather than assuming an empty queue
-   * means everything landed.
-   */
-  const flush = useCallback(async (): Promise<boolean> => {
-    if (inFlight.current) {
-      const settled = await inFlight.current;
-      // Keystrokes that arrived while that request was out still need sending.
-      if (!pending.current) return settled;
-    }
-
-    const next = pending.current;
-    if (!next) return !unsaved.current;
-    pending.current = null;
-
-    setSaveState('saving');
-
-    const attempt = (async (): Promise<boolean> => {
-      try {
-        const saved = await api.saveDraft(data.widget.id, next);
-        unsaved.current = false;
-        setSaveState(pending.current ? 'dirty' : 'saved');
-        setError(null);
-        setDirtySincePublish(saved.hasUnpublishedChanges);
-        return true;
-      } catch (cause) {
-        // Put the payload back, or the edit it carried is gone: the debounce has
-        // already fired, so nothing else would ever retry it. Newer keystrokes win.
-        pending.current = pending.current ?? next;
-        unsaved.current = true;
-        setSaveState('error');
-        setError(cause instanceof Error ? cause.message : 'could not save draft');
-        return false;
-      }
-    })();
-
-    inFlight.current = attempt;
-    try {
-      return await attempt;
-    } finally {
-      if (inFlight.current === attempt) inFlight.current = null;
-    }
-  }, [data.widget.id]);
-
-  /** Debounced autosave: typing should not fire a request per keystroke. */
-  const queue = useCallback(
-    (next: Record<string, unknown>) => {
-      pending.current = next;
-      setSaveState('dirty');
-      // Optimistic, and corrected by the save response. Without it a failed save
-      // would leave Publish disabled, which is the only manual way to retry.
-      setDirtySincePublish(true);
-      if (timer.current !== null) window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(() => void flush(), 700);
-    },
-    [flush],
-  );
-
-  useEffect(
-    () => () => {
-      if (timer.current !== null) window.clearTimeout(timer.current);
-    },
-    [],
-  );
-
-  /**
-   * A save that failed leaves its payload queued but nothing re-fires the
-   * debounce, so leaving now would drop the edit without ever saying so. Warn
-   * instead of losing it quietly.
-   */
-  useEffect(() => {
-    const warn = (event: BeforeUnloadEvent) => {
-      if (!pending.current && !unsaved.current) return;
-      event.preventDefault();
-      event.returnValue = '';
-    };
-
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, []);
-
-  const onChange = useCallback(
-    (path: (string | number)[], value: unknown) => {
-      setValues((current) => {
-        const next = setPath(current, path, value);
-        queue(next);
-        return next;
-      });
-    },
-    [queue],
-  );
-
-  const onStructuralChange = useCallback(
-    (next: Record<string, unknown>) => {
-      setValues(next);
-      queue(next);
-    },
-    [queue],
-  );
-
-  const publish = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      if (timer.current !== null) window.clearTimeout(timer.current);
-      // Publish promotes whatever the server holds, so it must not run until the
-      // server holds the form's current values. A failed save leaves the error on
-      // screen and stops here; a save still in flight is waited for.
-      if (!(await flush())) return;
-
-      const result = await api.publish(data.widget.id);
-      setPublished({ version: result.version, publishedAt: result.publishedAt });
-      setDirtySincePublish(false);
-      setSaveState('clean');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'could not publish');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const unpublish = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await api.unpublish(data.widget.id);
-      setPublished(null);
-      setDirtySincePublish(true);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'could not unpublish');
-    } finally {
-      setBusy(false);
-    }
-  };
+  const editor = useWidgetEditor(data);
+  const live = editor.status === 'published';
 
   return (
     <Shell active="widgets">
@@ -180,30 +28,44 @@ export function WidgetEditorPage({ data }: { data: EditorPageData }) {
 
         <div class="ml-auto flex items-center gap-3">
           <span
-            class={`text-xs ${saveState === 'error' ? 'text-rose-600' : 'text-ink-500'}`}
+            class={`text-xs ${editor.saveState === 'error' ? 'text-rose-600' : 'text-ink-500'}`}
             aria-live="polite"
           >
-            {SAVE_LABELS[saveState]}
+            {SAVE_LABELS[editor.saveState]}
           </span>
-          {published ? (
-            <button type="button" class="wp-btn-ghost" disabled={busy} onClick={unpublish}>
+          {live ? (
+            <button
+              type="button"
+              class="wp-btn-ghost"
+              disabled={editor.busy}
+              onClick={() => void editor.unpublish()}
+            >
               Unpublish
             </button>
-          ) : null}
+          ) : (
+            <button
+              type="button"
+              class="wp-btn-ghost"
+              disabled={editor.busy}
+              onClick={() => void editor.publish()}
+            >
+              Publish
+            </button>
+          )}
           <button
             type="button"
             class="wp-btn-primary"
-            disabled={busy || (Boolean(published) && !dirtySincePublish)}
-            onClick={publish}
+            disabled={editor.busy || !editor.dirty}
+            onClick={() => void editor.save()}
           >
-            {published ? 'Publish changes' : 'Publish'}
+            {live ? 'Save & go live' : 'Save'}
           </button>
         </div>
       </div>
 
-      {error ? (
+      {editor.error ? (
         <div class="mb-4">
-          <Alert kind="error">{error}</Alert>
+          <Alert kind="error">{editor.error}</Alert>
         </div>
       ) : null}
 
@@ -211,32 +73,33 @@ export function WidgetEditorPage({ data }: { data: EditorPageData }) {
         <div class="space-y-4">
           <SchemaForm
             fields={data.fields}
-            values={values}
-            onChange={onChange}
-            onStructuralChange={onStructuralChange}
+            values={editor.values}
+            onChange={editor.setValue}
+            onStructuralChange={editor.replaceValues}
           />
         </div>
 
         <div class="space-y-4 xl:sticky xl:top-6">
           <div class="h-[32rem]">
-            <Preview widgetId={data.widget.id} config={values} version={published?.version ?? 0} />
+            <Preview widgetId={data.widget.id} config={editor.values} version={editor.version} />
           </div>
 
           <div class="wp-card space-y-2 p-4">
             <h2 class="text-sm font-semibold">Install</h2>
             <p class="text-xs text-ink-500">
               Paste this before <code class="font-mono">&lt;/body&gt;</code> on any page.
-              {published ? null : ' Publish first, or it will serve nothing.'}
+              {live
+                ? ' Saving updates it for visitors straight away.'
+                : ' Publish first, or it will serve nothing.'}
             </p>
             <CopyField value={data.installSnippet} />
             <div class="flex flex-wrap gap-x-5 gap-y-1 pt-1 text-xs text-ink-500">
               <span>
-                Published{' '}
-                <span class="text-ink-700">{published ? `v${published.version}` : 'no'}</span>
+                <span class={live ? 'text-emerald-700' : 'text-ink-700'}>
+                  {live ? 'Live' : 'Draft'}
+                </span>{' '}
+                · v{editor.version}
               </span>
-              {published && dirtySincePublish ? (
-                <span class="text-amber-700">Unpublished changes</span>
-              ) : null}
               <a href={`/admin/widgets/${data.widget.id}/health`} class="hover:text-ink-900">
                 View health
               </a>

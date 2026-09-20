@@ -45,7 +45,8 @@ CREATE TABLE "widget" (
 	"name" text NOT NULL,
 	"template_id" text,
 	"schema" json DEFAULT '{}'::json NOT NULL,
-	"status" text DEFAULT 'active' NOT NULL,
+	"status" text DEFAULT 'draft' NOT NULL,
+	"published_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -54,9 +55,7 @@ CREATE TABLE "widget_config" (
 	"widget_id" text PRIMARY KEY NOT NULL,
 	"project_id" text NOT NULL,
 	"version" integer DEFAULT 0 NOT NULL,
-	"draft_values" jsonb DEFAULT '{}'::jsonb NOT NULL,
-	"published_values" jsonb,
-	"published_at" timestamp with time zone,
+	"values" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
