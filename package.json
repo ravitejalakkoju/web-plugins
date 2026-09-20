@@ -1,0 +1,43 @@
+{
+  "name": "web-plugins",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Embed runtime and schema-driven config platform for website widgets",
+  "packageManager": "pnpm@10.23.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n runtime,server,widget,page -c cyan,green,magenta,yellow \"pnpm dev:runtime\" \"pnpm dev:server\" \"pnpm dev:widget\" \"pnpm dev:page\"",
+    "dev:runtime": "pnpm --filter @web-plugins/runtime dev",
+    "dev:server": "pnpm --filter @web-plugins/server dev",
+    "dev:widget": "pnpm --filter @web-plugins/hello-widget dev",
+    "dev:page": "pnpm --filter @web-plugins/test-page dev",
+    "build": "pnpm --filter @web-plugins/protocol build && pnpm --filter @web-plugins/runtime build && pnpm --filter @web-plugins/widget-kit build && pnpm --filter @web-plugins/hello-widget build && pnpm --filter @web-plugins/server build",
+    "start": "NODE_ENV=production pnpm --filter @web-plugins/server start",
+    "build:packages": "pnpm --filter @web-plugins/protocol build && pnpm --filter @web-plugins/runtime build && pnpm --filter @web-plugins/widget-kit build",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:generate": "pnpm --filter @web-plugins/server db:generate",
+    "db:migrate": "pnpm --filter @web-plugins/server db:migrate",
+    "db:seed": "pnpm --filter @web-plugins/server db:seed",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "concurrently": "^10.0.5",
+    "eslint": "^9.39.5",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.8",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "@tailwindcss/oxide"
+    ]
+  }
+}

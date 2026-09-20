@@ -1,0 +1,49 @@
+{
+  "name": "@web-plugins/widget-kit",
+  "version": "0.1.0",
+  "description": "Iframe-side client for Web Plugins widget authors: config, RPC and auto-resize",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./preact": {
+      "types": "./dist/preact/index.d.ts",
+      "import": "./dist/preact/index.js",
+      "require": "./dist/preact/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@web-plugins/protocol": "workspace:*"
+  },
+  "peerDependencies": {
+    "preact": ">=10"
+  },
+  "peerDependenciesMeta": {
+    "preact": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "preact": "^10.29.8",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}

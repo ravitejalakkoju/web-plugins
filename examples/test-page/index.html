@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Web Plugins test page</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        color: #111827;
+        background: #f7f8fa;
+      }
+      main {
+        max-width: 46rem;
+        margin: 0 auto;
+        padding: 3rem 1.5rem 60vh;
+      }
+      h1 {
+        margin: 0 0 0.25rem;
+        font-size: 1.35rem;
+      }
+      p.lede {
+        margin: 0 0 2rem;
+        color: #6b7280;
+        font-size: 0.9rem;
+      }
+      fieldset {
+        margin: 0 0 1.5rem;
+        padding: 1rem;
+        border: 1px solid #dde1e9;
+        border-radius: 0.5rem;
+        background: #fff;
+      }
+      legend {
+        padding: 0 0.35rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #374151;
+      }
+      label {
+        display: block;
+        margin-bottom: 0.25rem;
+        font-size: 0.75rem;
+        color: #374151;
+      }
+      input {
+        width: 100%;
+        margin-bottom: 0.75rem;
+        padding: 0.5rem 0.65rem;
+        border: 1px solid #dde1e9;
+        border-radius: 0.375rem;
+        font: inherit;
+        font-size: 0.85rem;
+      }
+      button {
+        padding: 0.5rem 0.9rem;
+        border: 0;
+        border-radius: 0.375rem;
+        color: #fff;
+        background: #111827;
+        font: inherit;
+        font-size: 0.85rem;
+        cursor: pointer;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8rem;
+      }
+      th,
+      td {
+        padding: 0.4rem 0.5rem;
+        text-align: left;
+        border-bottom: 1px solid #eef0f4;
+      }
+      th {
+        color: #6b7280;
+        font-weight: 500;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.78rem;
+      }
+      .filler {
+        margin-top: 2rem;
+        color: #9ca3af;
+        font-size: 0.85rem;
+        line-height: 1.7;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Web Plugins test page</h1>
+      <p class="lede">
+        A plain page with no framework, exactly like a customer's site. Enter widget ids and the
+        scripts are injected the same way the install snippet does it.
+      </p>
+
+      <fieldset>
+        <legend>Install</legend>
+        <form id="setup">
+          <label for="base">Server base URL</label>
+          <input id="base" name="base" value="http://localhost:5055" />
+
+          <label for="ids">Widget ids (comma separated)</label>
+          <input id="ids" name="ids" placeholder="abc123XYZ, def456UVW" />
+
+          <button type="submit">Load widgets</button>
+        </form>
+      </fieldset>
+
+      <fieldset>
+        <legend>Runtime</legend>
+        <table>
+          <thead>
+            <tr>
+              <th>Widget</th>
+              <th>Mounted</th>
+              <th>Config version</th>
+              <th>Chrome</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody id="status">
+            <tr>
+              <td colspan="5">No widgets loaded yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </fieldset>
+
+      <p class="filler">
+        Scroll content, so fixed-position chrome can be checked against a real page. Lorem ipsum
+        dolor sit amet, consectetur adipiscing elit. Curabitur blandit tempus porttitor. Integer
+        posuere erat a ante venenatis dapibus posuere velit aliquet. Aenean lacinia bibendum nulla
+        sed consectetur. Nullam quis risus eget urna mollis ornare vel eu leo.
+      </p>
+
+      <script>
+        const params = new URLSearchParams(location.search);
+        const stored = JSON.parse(localStorage.getItem('wp_test_page') || '{}');
+
+        const base = params.get('base') || stored.base || 'http://localhost:5055';
+        const ids = (params.get('ids') || (stored.ids || []).join(','))
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean);
+
+        document.getElementById('base').value = base;
+        document.getElementById('ids').value = ids.join(', ');
+
+        document.getElementById('setup').addEventListener('submit', (event) => {
+          event.preventDefault();
+          const nextBase = document.getElementById('base').value.trim().replace(/\/+$/, '');
+          const nextIds = document
+            .getElementById('ids')
+            .value.split(',')
+            .map((value) => value.trim())
+            .filter(Boolean);
+
+          localStorage.setItem('wp_test_page', JSON.stringify({ base: nextBase, ids: nextIds }));
+          // Reload rather than inject twice: a real page loads the script once.
+          location.search = `?base=${encodeURIComponent(nextBase)}&ids=${encodeURIComponent(nextIds.join(','))}`;
+        });
+
+        // This is the install snippet, once per widget.
+        for (const id of ids) {
+          const script = document.createElement('script');
+          script.src = `${base}/v1/widget.js?id=${encodeURIComponent(id)}`;
+          script.async = true;
+          document.head.append(script);
+        }
+
+        const tbody = document.getElementById('status');
+
+        const cell = (text) => {
+          const td = document.createElement('td');
+          td.textContent = text;
+          return td;
+        };
+
+        function refresh() {
+          if (ids.length === 0) return;
+          tbody.replaceChildren();
+
+          for (const id of ids) {
+            const sdk = window.WebPlugins && window.WebPlugins.get(id);
+            const config = sdk && sdk.getConfig();
+            const row = document.createElement('tr');
+            const idCell = document.createElement('td');
+            const code = document.createElement('code');
+            code.textContent = id;
+            idCell.append(code);
+
+            row.append(
+              idCell,
+              cell(sdk ? 'yes' : 'no'),
+              cell(sdk ? `v${sdk.version}` : '—'),
+              cell((config && config.chrome) || '—'),
+            );
+
+            const actions = document.createElement('td');
+            if (sdk) {
+              const toggle = document.createElement('button');
+              toggle.textContent = 'toggle';
+              toggle.addEventListener('click', () => sdk.toggle());
+              actions.append(toggle);
+            } else {
+              actions.textContent = '—';
+            }
+            row.append(actions);
+            tbody.append(row);
+          }
+        }
+
+        setInterval(refresh, 1000);
+        refresh();
+      </script>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,23 @@
+node_modules/
+.pnpm-store/
+dist/
+build/
+coverage/
+
+# embedded Postgres data (DATABASE_URL=pglite:...)
+.data/
+
+.env
+.env.*
+!.env.example
+
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+*.tsbuildinfo

@@ -1,0 +1,20 @@
+Web Plugins is open core. Licensing is per package, not per repository.
+
+MIT
+  packages/protocol      @web-plugins/protocol    see packages/protocol/LICENSE
+  packages/runtime       @web-plugins/runtime     see packages/runtime/LICENSE
+  packages/widget-kit    @web-plugins/widget-kit  see packages/widget-kit/LICENSE
+  examples/hello-widget                           see examples/hello-widget/LICENSE
+
+  Everything that ships to a visitor's browser, plus the shared config and RPC
+  contracts, is MIT. Embed it in commercial products without obligation.
+
+AGPL-3.0-only
+  apps/server            @web-plugins/server      see apps/server/LICENSE
+
+  The control plane (API, admin panel, database) is AGPL-3.0-only. Self-host it
+  freely. If you run a modified version as a network service, section 13
+  requires you to offer that source to its users. For a commercial license
+  without that obligation, contact the copyright holder.
+
+Copyright (c) 2026 Ravi Teja L

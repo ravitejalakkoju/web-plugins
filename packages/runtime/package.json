@@ -1,0 +1,34 @@
+{
+  "name": "@web-plugins/runtime",
+  "version": "0.1.0",
+  "description": "The Web Plugins browser runtime: one script that mounts any configured widget",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/runtime.js",
+  "types": "./dist/runtime.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/runtime.d.ts",
+      "import": "./dist/runtime.js"
+    },
+    "./widget.js": "./dist/widget.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@web-plugins/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}

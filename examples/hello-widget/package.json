@@ -1,0 +1,23 @@
+{
+  "name": "@web-plugins/hello-widget",
+  "version": "0.1.0",
+  "description": "Example iframe widget: reads its config over RPC and talks back to the host",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5174 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --port 5174 --strictPort",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@web-plugins/widget-kit": "workspace:*",
+    "preact": "^10.29.8"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.0"
+  }
+}

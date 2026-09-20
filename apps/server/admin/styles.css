@@ -1,0 +1,79 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-ink-50: #f7f8fa;
+  --color-ink-100: #eef0f4;
+  --color-ink-200: #dde1e9;
+  --color-ink-300: #c2c8d4;
+  --color-ink-500: #6b7280;
+  --color-ink-700: #374151;
+  --color-ink-900: #111827;
+}
+
+/* `@utility`, not a plain class, so the variants below can `@apply` it. */
+@utility wp-btn {
+  @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition;
+  @apply disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+/* The preview pane uses a checkerboard so a transparent launcher reads clearly,
+   the same trick the dashboard preview used. */
+@utility wp-checkerboard {
+  background-image:
+    linear-gradient(45deg, #f3f4f6 25%, transparent 25%),
+    linear-gradient(-45deg, #f3f4f6 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #f3f4f6 75%),
+    linear-gradient(-45deg, transparent 75%, #f3f4f6 75%);
+  background-size: 24px 24px;
+  background-position:
+    0 0,
+    0 12px,
+    12px -12px,
+    -12px 0;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    @apply bg-ink-50 text-ink-900 antialiased;
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      Roboto,
+      Helvetica,
+      Arial,
+      sans-serif;
+  }
+}
+
+@layer components {
+  .wp-input {
+    @apply w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-xs outline-none transition;
+    @apply focus:border-ink-900 focus:ring-2 focus:ring-ink-900/10;
+  }
+
+  .wp-label {
+    @apply mb-1 block text-xs font-medium text-ink-700;
+  }
+
+  .wp-note {
+    @apply mt-1 block text-xs text-ink-500;
+  }
+
+  .wp-btn-primary {
+    @apply wp-btn bg-ink-900 text-white hover:bg-ink-700;
+  }
+
+  .wp-btn-ghost {
+    @apply wp-btn border border-ink-200 bg-white text-ink-700 hover:bg-ink-100;
+  }
+
+  .wp-card {
+    @apply rounded-lg border border-ink-200 bg-white shadow-xs;
+  }
+}
