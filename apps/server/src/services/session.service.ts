@@ -56,6 +56,11 @@ export class SessionService {
     private readonly options: { tokenSecret: string },
   ) {}
 
+  /**
+   * A row's lifetime has to track the token's, because every call that touches a
+   * session also hands back a token minted from now. Letting the row expire first
+   * would leave a visitor holding a token this server refuses to honour.
+   */
   private expiry(): Date {
     return new Date(Date.now() + VISITOR_TOKEN_TTL_SECONDS * 1000);
   }
@@ -180,6 +185,9 @@ export class SessionService {
         ipAddress: input.client.ipAddress,
         userAgent: input.client.userAgent,
         lastSeenAt: now,
+        // Slid forward because `credentials` below returns a token good for another
+        // full TTL from now.
+        expiresAt: this.expiry(),
         updatedAt: now,
       })
       .where(eq(visitorSession.id, found.id))
@@ -222,9 +230,11 @@ export class SessionService {
       metadata: boundMeta(input.metadata),
     });
 
+    // An active visitor keeps their session alive. Without this a session that
+    // only ever reports events would expire underneath a still-valid token.
     await this.db
       .update(visitorSession)
-      .set({ lastSeenAt: now, updatedAt: now })
+      .set({ lastSeenAt: now, expiresAt: this.expiry(), updatedAt: now })
       .where(eq(visitorSession.id, input.sessionId));
   }
 }

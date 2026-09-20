@@ -43,7 +43,12 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
 
   // Visitor identity. A child scope, so it can accept an empty JSON body without
   // the heartbeat below doing the same.
-  await app.register(sessionRoutes);
+  //
+  // `IDENTITY_ENABLED=false` is documented as stopping collection, so it has to
+  // close the endpoints too. Leaving them mounted would let anything that still
+  // has the URL write names, emails and IP addresses into a deploy whose operator
+  // has explicitly turned identity off.
+  if (app.env.identityEnabled) await app.register(sessionRoutes);
 
   const canReadDraft = (widgetId: string, token: string | undefined): boolean =>
     Boolean(token) && verifyPreviewToken(app.env.previewTokenSecret, token!, widgetId);

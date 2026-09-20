@@ -153,7 +153,7 @@ Two guards run before anything else:
 
 | Route                     | Returns                                                                                                                                            |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/templates`      | Available templates with their name, description, chrome, and whether they need a `src`                                                            |
+| `GET /api/templates`      | Available templates with their name, description, chrome, and `src` (null when the template has no default)                                        |
 | `GET /api/widgets`        | Every widget in the project with its publish state and derived health                                                                              |
 | `POST /api/widgets`       | `{ name, templateId }` → `201 { id }`. The draft starts as the template defaults                                                                   |
 | `GET /api/widgets/:id`    | Widget, the draft `values`, the published snapshot (with `version` and `publishedAt`, or `null`), `hasUnpublishedChanges`, and the install snippet |

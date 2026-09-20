@@ -78,9 +78,10 @@ chromes use these as the frame's size; a widget can ask for a different height a
 }
 ```
 
-Operators are `equals`, `contains`, `starts_with`, `ends_with`, and `regex`. `equals` and
-`starts_with` / `ends_with` match the path; `contains` and `regex` match path plus query string. With
-`specific: false` (or an empty rule list) the widget shows everywhere.
+Operators are `equals`, `contains`, `starts_with`, `ends_with`, and `regex`. `starts_with` and
+`ends_with` match the path; `contains` and `regex` match path plus query string; `equals` matches
+either, so `/cart` and `/cart?step=2` both satisfy a rule of `/cart?step=2`. With `specific: false`
+(or an empty rule list) the widget shows everywhere.
 
 Device flags are resolved against a 732px viewport breakpoint and combined with the page rules, so a
 rule that fails hides the widget on both devices. This decides whether the widget shows _by default_

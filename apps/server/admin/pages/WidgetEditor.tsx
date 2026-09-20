@@ -28,26 +28,52 @@ export function WidgetEditorPage({ data }: { data: EditorPageData }) {
   const pending = useRef<Record<string, unknown> | null>(null);
   /** Whether the last save attempt failed, so publish can refuse to run. */
   const unsaved = useRef(false);
+  /** The save currently on the wire, so publish never runs ahead of one. */
+  const inFlight = useRef<Promise<boolean> | null>(null);
 
-  /** Returns whether the server now holds what the form shows. */
+  /**
+   * Sends the queued draft and reports whether the server now holds what the form
+   * shows. Publish depends on that answer being true only when it really is, so
+   * this waits for a save already in flight rather than assuming an empty queue
+   * means everything landed.
+   */
   const flush = useCallback(async (): Promise<boolean> => {
+    if (inFlight.current) {
+      const settled = await inFlight.current;
+      // Keystrokes that arrived while that request was out still need sending.
+      if (!pending.current) return settled;
+    }
+
     const next = pending.current;
     if (!next) return !unsaved.current;
     pending.current = null;
 
     setSaveState('saving');
+
+    const attempt = (async (): Promise<boolean> => {
+      try {
+        const saved = await api.saveDraft(data.widget.id, next);
+        unsaved.current = false;
+        setSaveState(pending.current ? 'dirty' : 'saved');
+        setError(null);
+        setDirtySincePublish(saved.hasUnpublishedChanges);
+        return true;
+      } catch (cause) {
+        // Put the payload back, or the edit it carried is gone: the debounce has
+        // already fired, so nothing else would ever retry it. Newer keystrokes win.
+        pending.current = pending.current ?? next;
+        unsaved.current = true;
+        setSaveState('error');
+        setError(cause instanceof Error ? cause.message : 'could not save draft');
+        return false;
+      }
+    })();
+
+    inFlight.current = attempt;
     try {
-      const saved = await api.saveDraft(data.widget.id, next);
-      unsaved.current = false;
-      setSaveState(pending.current ? 'dirty' : 'saved');
-      setError(null);
-      setDirtySincePublish(saved.hasUnpublishedChanges);
-      return true;
-    } catch (cause) {
-      unsaved.current = true;
-      setSaveState('error');
-      setError(cause instanceof Error ? cause.message : 'could not save draft');
-      return false;
+      return await attempt;
+    } finally {
+      if (inFlight.current === attempt) inFlight.current = null;
     }
   }, [data.widget.id]);
 
@@ -56,6 +82,9 @@ export function WidgetEditorPage({ data }: { data: EditorPageData }) {
     (next: Record<string, unknown>) => {
       pending.current = next;
       setSaveState('dirty');
+      // Optimistic, and corrected by the save response. Without it a failed save
+      // would leave Publish disabled, which is the only manual way to retry.
+      setDirtySincePublish(true);
       if (timer.current !== null) window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => void flush(), 700);
     },
@@ -68,6 +97,22 @@ export function WidgetEditorPage({ data }: { data: EditorPageData }) {
     },
     [],
   );
+
+  /**
+   * A save that failed leaves its payload queued but nothing re-fires the
+   * debounce, so leaving now would drop the edit without ever saying so. Warn
+   * instead of losing it quietly.
+   */
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (!pending.current && !unsaved.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, []);
 
   const onChange = useCallback(
     (path: (string | number)[], value: unknown) => {
@@ -93,9 +138,9 @@ export function WidgetEditorPage({ data }: { data: EditorPageData }) {
     setError(null);
     try {
       if (timer.current !== null) window.clearTimeout(timer.current);
-      // Publish promotes whatever the server holds. If the pending save failed we
-      // would publish the previous values while the form shows the new ones, so
-      // stop here and leave the save error on screen.
+      // Publish promotes whatever the server holds, so it must not run until the
+      // server holds the form's current values. A failed save leaves the error on
+      // screen and stops here; a save still in flight is waited for.
       if (!(await flush())) return;
 
       const result = await api.publish(data.widget.id);

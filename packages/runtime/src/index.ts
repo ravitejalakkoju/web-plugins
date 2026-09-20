@@ -59,6 +59,13 @@ export function mount(meta: ScriptMeta): WidgetSdk | null {
     hosts.set(meta.widgetId, host);
     global.widgets[meta.widgetId] = sdk;
 
+    // Forget a destroyed widget, or the lookup above would keep handing back its
+    // dead SDK and the id could never be mounted again.
+    host.onDestroy = () => {
+      hosts.delete(meta.widgetId);
+      delete global.widgets[meta.widgetId];
+    };
+
     // `manual` waits for an explicit init()/ready() from the host page.
     if (meta.mode !== 'manual') void host.init();
 

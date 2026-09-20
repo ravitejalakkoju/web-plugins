@@ -36,6 +36,12 @@ export interface Env {
    * identity service instead, or `IDENTITY_ENABLED=false` to turn identity off.
    */
   identityBaseUrl: string | null;
+  /**
+   * False only for `IDENTITY_ENABLED=false`, which is a kill switch rather than a
+   * client-side default: it unmounts `/v1/sessions` as well as stopping the runtime
+   * from calling it, so no visitor data can be written either way.
+   */
+  identityEnabled: boolean;
 }
 
 const isFalse = (value: string | undefined): boolean =>
@@ -68,6 +74,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
       ? trimTrailingSlash(source.RUNTIME_BUNDLE_URL)
       : null,
     identityBaseUrl: resolveIdentityBaseUrl(source, publicBaseUrl),
+    identityEnabled: !isFalse(source.IDENTITY_ENABLED),
   };
 }
 

@@ -74,6 +74,18 @@ export class WidgetHost {
   private destroyed = false;
   private readonly pendingEnrichers: IdentityEnricher[] = [];
 
+  /** Why the last `init()` gave up, so `ready()` can reject with the reason. */
+  private initError: Error | null = null;
+  private previewHandler: ((event: MessageEvent) => void) | null = null;
+  /** Set once the editor has pushed config, so a slower fetch cannot undo it. */
+  private previewApplied = false;
+
+  /**
+   * Called at the end of `destroy()`. `mount()` uses it to drop this widget from
+   * the module registry, without the host needing to know a registry exists.
+   */
+  onDestroy: (() => void) | null = null;
+
   constructor(meta: ScriptMeta) {
     this.widgetId = meta.widgetId;
     this.mode = meta.mode;
@@ -141,10 +153,19 @@ export class WidgetHost {
     if (this.initPromise) return this.initPromise;
 
     this.initPromise = (async () => {
+      this.initError = null;
+
       try {
         const envelope = await this.loadConfig();
+        // The host page can call destroy() while the config request is still out.
+        // Without this, a slow response mounts chrome into a detached element.
+        if (this.destroyed) return;
+        // In preview this fetch is only a first paint. The editor's push is the
+        // authority, so a response arriving after one must not undo it.
+        if (this.previewApplied) return;
 
         if (!envelope?.config) {
+          const message = `[web-plugins] no config available for widget "${this.widgetId}"`;
           this.heartbeat.send({
             initialized: false,
             visible: false,
@@ -152,7 +173,8 @@ export class WidgetHost {
             errorCode: 'CONFIG_UNAVAILABLE',
             errorMessage: 'no published config for this widget',
           });
-          console.warn(`[web-plugins] no config available for widget "${this.widgetId}"`);
+          console.warn(message);
+          this.initError = new Error(message);
           return;
         }
 
@@ -164,6 +186,7 @@ export class WidgetHost {
       } catch (error) {
         this.heartbeat.fail('INIT_FAILED', error);
         console.error('[web-plugins] failed to initialise widget', error);
+        this.initError = error instanceof Error ? error : new Error(String(error));
       }
     })();
 
@@ -193,6 +216,8 @@ export class WidgetHost {
   }
 
   private render(config: WidgetConfig): void {
+    if (this.destroyed) return;
+
     this.chrome?.destroy();
     this.chrome = null;
     this.stylesheet?.remove();
@@ -373,15 +398,18 @@ export class WidgetHost {
 
   /** In preview the panel pushes edited config straight in, with no publish. */
   private listenForPreviewConfig(): void {
-    window.addEventListener('message', (event) => {
+    this.previewHandler = (event: MessageEvent) => {
       if (this.destroyed) return;
       if (event.source !== window.parent) return;
       if (!isPreviewConfig(event.data)) return;
 
+      this.previewApplied = true;
       this.version = event.data.payload.version ?? this.version;
       this.render(event.data.payload.config);
       this.initialized = true;
-    });
+    };
+
+    window.addEventListener('message', this.previewHandler);
   }
 
   // ---- visible state -------------------------------------------------------
@@ -442,7 +470,40 @@ export class WidgetHost {
     let pending: Promise<void> | null = null;
     const currentVersion = () => this.version;
 
-    return {
+    /**
+     * Resolves only when the widget is actually mounted. An `init()` that gave up
+     * - no published config, or a request that threw - settles without mounting
+     * anything, so waiting on it alone would report success for a widget that is
+     * not on the page.
+     */
+    const whenReady = (): Promise<void> => {
+      if (this.initialized) return Promise.resolve();
+
+      if (!pending) {
+        const attempt = this.init().then(() => {
+          if (this.initialized) return;
+          throw (
+            this.initError ??
+            new Error(
+              `[web-plugins] widget "${this.widgetId}" ${
+                this.destroyed ? 'was destroyed before it mounted' : 'did not initialise'
+              }`,
+            )
+          );
+        });
+
+        // Don't cache a failure: publishing a config and calling init() again
+        // should let a later ready() succeed instead of replaying the old error.
+        pending = attempt;
+        attempt.catch(() => {
+          if (pending === attempt) pending = null;
+        });
+      }
+
+      return pending;
+    };
+
+    const sdk: WidgetSdk = {
       id: this.widgetId,
       mode: this.mode,
       // A getter, not a snapshot: the version changes when config is refetched.
@@ -455,14 +516,12 @@ export class WidgetHost {
       close: () => this.close(),
       toggle: () => this.toggle(),
       init: () => this.init(),
-      ready: (callback) => {
-        if (!pending) pending = this.initialized ? Promise.resolve() : this.init();
-        const sdk = this.toSdk();
-        return pending.then(() => {
+      // Rejects if the widget never mounted, so `.catch()` is the way to find out.
+      ready: (callback) =>
+        whenReady().then(() => {
           callback?.(sdk);
           return sdk;
-        });
-      },
+        }),
       track: (name, props) => this.track(name, props),
       getConfig: () => this.getConfig(),
       user: {
@@ -475,6 +534,8 @@ export class WidgetHost {
       },
       destroy: () => this.destroy(),
     };
+
+    return sdk;
   }
 
   destroy(): void {
@@ -482,7 +543,14 @@ export class WidgetHost {
     this.chrome?.destroy();
     this.chrome = null;
     this.identity.destroy();
+
+    if (this.previewHandler) {
+      window.removeEventListener('message', this.previewHandler);
+      this.previewHandler = null;
+    }
+
     document.body.classList.remove(SCROLL_LOCK_CLASS);
     this.hostElement.remove();
+    this.onDestroy?.();
   }
 }

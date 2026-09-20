@@ -68,8 +68,9 @@ Notes that save debugging time:
 
 - **Navigate through `openUrl`.** The host performs it and rejects anything that is not absolute
   `http(s)`. A cross-origin iframe cannot move the top window itself.
-- **Identity and analytics degrade quietly.** `identify` needs an identity service configured on the
-  server; without one it resolves to `null`. `track` is suppressed entirely in preview mode.
+- **Identity and analytics degrade quietly.** `identify` resolves to `null` when the server has
+  identity turned off with `IDENTITY_ENABLED=false`, which is the only way to get there since it is on
+  by default. `track` is suppressed entirely in preview mode.
 - **Messages are origin-pinned both ways.** The client only accepts messages from the host origin its
   URL declared, and only posts back to that origin.
 - **`isEmbedded` is false when opened directly in a tab,** and `connect()` rejects. Render a hint for

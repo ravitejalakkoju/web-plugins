@@ -123,7 +123,9 @@ DELETE FROM visitor_session WHERE expires_at < now();  -- cascades to visitor_ev
 ```
 
 Turning identity off with `IDENTITY_ENABLED=false` stops new rows being written: the runtime never mints
-a session, so nothing is collected. Existing rows stay where they are.
+a session, and `/v1/sessions` is not mounted at all, so neither a widget nor a direct caller can write.
+Existing rows stay where they are. `VISITOR_TOKEN_SECRET` is still required at boot even when identity is
+off, so the switch can be flipped back without a config change.
 
 ## Deployment shape
 

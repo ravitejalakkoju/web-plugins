@@ -242,6 +242,17 @@ widget.destroy();
 await widget.ready(); // resolves once config is loaded and chrome is mounted
 ```
 
+`ready()` rejects if the widget never mounted — no published config, or a request that failed — so it
+is worth catching rather than assuming the callback runs:
+
+```js
+widget.ready((w) => w.open()).catch((error) => console.warn('widget unavailable', error));
+```
+
+A rejection is not permanent, and it is not cached: calling `ready()` again retries the config load, so
+a widget that failed while the network was down will mount once it comes back. A config already in the
+runtime cache survives an outage on its own, so this only bites on a first visit.
+
 Add `&mode=manual` to the script URL to skip auto-mounting, then call `widget.init()` yourself — useful
 on a consent-gated page.
 

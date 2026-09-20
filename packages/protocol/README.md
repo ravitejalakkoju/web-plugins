@@ -11,18 +11,21 @@ MIT licensed.
 Each entry point is separate so the browser runtime can take the types and schema helpers without
 pulling Ajv into the bundle.
 
-| Import                         | Contains                                                              |
-| ------------------------------ | --------------------------------------------------------------------- |
-| `@web-plugins/protocol`        | Everything below, for server-side use                                 |
-| `@web-plugins/protocol/config` | Config types, core JSON Schema, `buildWidgetConfigSchema`, validators |
-| `@web-plugins/protocol/rpc`    | Message envelopes, `HOST_METHODS`, `HOST_EVENTS`, type guards         |
-| `@web-plugins/protocol/health` | Heartbeat payload, health statuses, `deriveWidgetStatus`              |
-| `@web-plugins/protocol/form`   | `schemaToFormFields` and its field types                              |
+| Import                         | Contains                                                      |
+| ------------------------------ | ------------------------------------------------------------- |
+| `@web-plugins/protocol`        | Everything below, plus the validators, for server-side use    |
+| `@web-plugins/protocol/config` | Config types, core JSON Schema, `buildWidgetConfigSchema`     |
+| `@web-plugins/protocol/rpc`    | Message envelopes, `HOST_METHODS`, `HOST_EVENTS`, type guards |
+| `@web-plugins/protocol/health` | Heartbeat payload, health statuses, `deriveWidgetStatus`      |
+| `@web-plugins/protocol/form`   | `schemaToFormFields` and its field types                      |
+
+The validators are the reason for the split, so they are the one thing `/config` does not carry.
 
 ## Config
 
 ```ts
-import { buildWidgetConfigSchema, validateConfig } from '@web-plugins/protocol/config';
+import { validateConfig } from '@web-plugins/protocol';
+import { buildWidgetConfigSchema } from '@web-plugins/protocol/config';
 
 // Core keys plus one template's contributions.
 const schema = buildWidgetConfigSchema({
@@ -36,8 +39,9 @@ const { valid, errors } = validateConfig(schema, values);
 `validateConfig` coerces types and applies defaults in place, because configs arrive from HTML forms
 where every number is a string. Compiled validators are cached by schema.
 
-Also here: `isConfigComplete`, which is what decides whether a widget shows as `CONFIG_REQUIRED` in
-health. It falls back to the core schema when a widget has no template parts of its own.
+On the same entry: `isConfigComplete`, which is what decides whether a widget shows as
+`CONFIG_REQUIRED` in health. It falls back to the core schema when a widget has no template parts of
+its own.
 
 See the [config contract](../../docs/config-contract.md) for what the keys mean.
 
