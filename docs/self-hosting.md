@@ -39,6 +39,7 @@ are idempotent, so a restart is safe and a rolling deploy does not need a separa
 | `DATABASE_URL`         | yes      | —                        | Postgres connection string, or `pglite:<path>`                                                          |
 | `SESSION_SECRET`       | yes      | —                        | Signs the admin cookie. 16 chars minimum, enforced at boot                                              |
 | `PREVIEW_TOKEN_SECRET` | yes      | —                        | Signs preview tokens. Same minimum                                                                      |
+| `VISITOR_TOKEN_SECRET` | yes      | —                        | Signs visitor session JWTs. Same minimum. Rotating it logs every visitor out                            |
 | `ADMIN_EMAIL`          | yes      | —                        | The single operator account                                                                             |
 | `ADMIN_PASSWORD`       | yes      | —                        | Compared in constant time                                                                               |
 | `PUBLIC_BASE_URL`      | no       | `http://localhost:$PORT` | **Set this in production.** It is the origin in install snippets, and the allowlist for admin mutations |
@@ -46,7 +47,8 @@ are idempotent, so a restart is safe and a rolling deploy does not need a separa
 | `HOST`                 | no       | `0.0.0.0`                |                                                                                                         |
 | `NODE_ENV`             | no       | `development`            | `production` enables `trustProxy`, `secure` cookies, and the prebuilt panel                             |
 | `RUNTIME_BUNDLE_URL`   | no       | —                        | Serve `widget.js` from a CDN; `/v1/widget.js` 302s there instead                                        |
-| `IDENTITY_BASE_URL`    | no       | —                        | Visitor identity service. Unset means identity and event tracking are off                               |
+| `IDENTITY_ENABLED`     | no       | `true`                   | Set `false` to turn visitor identity and event tracking off entirely                                    |
+| `IDENTITY_BASE_URL`    | no       | `PUBLIC_BASE_URL`        | Point identity at a separate service serving the same `/v1/sessions` contract                           |
 
 Template `src` values are read from the environment when seeding, so a deploy can point widgets at its
 own widget hosts without editing code: `HELLO_WIDGET_URL`, `SUPPORT_CLIENT_URL`, `POPUP_CLIENT_URL`,
@@ -89,15 +91,39 @@ pnpm db:migrate      # or just restart the server
 | `project`         | One row for a self-host install, and the `projectId` every other table carries        |
 | `widget_template` | The starter kinds: name, chrome, src, schema parts, defaults                          |
 | `widget`          | The public short id from the script URL, plus a **snapshot** of its template's schema |
-| `widget_config`   | One row per version, `draft` / `published` / `archived`                               |
+| `widget_config`   | One row per widget: `draft_values`, `published_values`, and the published `version`   |
 | `widget_health`   | Last heartbeat per widget, one row, upserted                                          |
+| `visitor_session` | One row per visitor: traits from `identify`, plus IP, user agent and a restore id     |
+| `visitor_event`   | Events widgets report against a session. Write-only so far; nothing reads them yet    |
 
 Two properties worth relying on. First, `widget.schema` is a snapshot: editing a template never
-invalidates a live widget's config. Second, publishing archives rather than overwrites, so every
-published version is still on disk and a rollback is a data change, not a restore.
+invalidates a live widget's config. Second, saving and publishing write different columns, so editing
+a live widget cannot disturb what visitors are already being served.
+
+What this shape deliberately gives up is history. Publishing overwrites `published_values`, so there
+is no previous revision to roll back to — take a database backup before a risky change if you need
+one. Unpublishing clears `published_values` and takes the widget offline, but leaves the draft alone.
 
 Back up `project`, `widget`, `widget_template`, and `widget_config`. `widget_health` is derived from
 traffic and will rebuild itself within a heartbeat of the next page view.
+
+### Visitor data
+
+`visitor_session` is the one table that holds personal data, so it is worth knowing exactly what lands
+in it. Traits (`external_id`, `name`, `email`, `phone`, `company`) arrive only when a host page calls
+`identify`; `ip_address` and `user_agent` are taken from the request on every call. There is no
+geolocation lookup, no device or OS parsing, and no browser fingerprint - if a deploy wants those, they
+belong in `meta`.
+
+Both tables grow with traffic and nothing prunes them. `visitor_session.expires_at` is 30 days out and
+refreshed on each visit, which makes the cleanup a one-liner to schedule if the volume warrants it:
+
+```sql
+DELETE FROM visitor_session WHERE expires_at < now();  -- cascades to visitor_event
+```
+
+Turning identity off with `IDENTITY_ENABLED=false` stops new rows being written: the runtime never mints
+a session, so nothing is collected. Existing rows stay where they are.
 
 ## Deployment shape
 
@@ -143,6 +169,10 @@ What the design assumes, so you know what you are relying on:
   short-lived HMAC over one widget id.
 - **Heartbeats are untrusted input.** Unauthenticated by necessity, therefore rate-limited (60/min),
   length-capped by schema, and required to resolve to a real widget.
+- **A visitor session is only ever resolved from a credential.** `identify` finds the session from its
+  signed token and nothing else; it never matches on email or `external_id`, because that would let
+  anyone take over a visitor's session by guessing an address. A `restore_id` is a random UUID and is
+  treated as a credential in its own right, scoped to the project and refused once expired.
 - **Admin mutations check `Origin`.** A non-`GET` from an unexpected origin gets `403`, so a malicious
   page cannot ride the operator's cookie. Login is rate-limited to 10/min and compares in constant
   time.
@@ -155,9 +185,13 @@ What the design assumes, so you know what you are relying on:
   visitor is stored XSS with extra steps.
 - **Inline launcher SVG is pattern-checked** and rejected if it contains a `<script>` tag.
 
-Things to do yourself before going live: change both secrets and the admin password, terminate TLS,
+Things to do yourself before going live: change all three secrets and the admin password, terminate TLS,
 and restrict who can reach `/admin`. The panel is single-operator by design — there is no user table,
 no roles, and no audit log of who published what.
+
+`VISITOR_TOKEN_SECRET` deserves its own note: visitor tokens live in a visitor's `localStorage` for 30
+days and their claims are read client-side, so a weak or leaked value lets anyone forge a visitor
+identity. Keep it distinct from the other two, and treat rotating it as logging every visitor out.
 
 ## Upgrading
 

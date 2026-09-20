@@ -1,14 +1,5 @@
 import { relations } from 'drizzle-orm';
-import {
-  index,
-  integer,
-  json,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-  uniqueIndex,
-} from 'drizzle-orm/pg-core';
+import { index, integer, json, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 /**
  * One store for what used to be split across DynamoDB (`versionTag: "current"`)
@@ -71,31 +62,102 @@ export const widget = pgTable(
 );
 
 /**
- * Config versions. Exactly one row per widget is `draft` (the working copy) and
- * at most one is `published` (what `/v1/config` serves); superseded rows become
- * `archived`. Mirrors the draft-to-publish flow of `webext-config.service.ts`.
+ * Exactly one config row per widget, holding the two documents that matter: the
+ * working copy being edited and the copy `/v1/config` serves. Publishing is a
+ * copy from one column to the other, so there is no version history to prune and
+ * no status enum to keep consistent.
  */
-export const widgetConfig = pgTable(
-  'widget_config',
+export const widgetConfig = pgTable('widget_config', {
+  widgetId: text('widget_id')
+    .primaryKey()
+    .references(() => widget.id, { onDelete: 'cascade' }),
+  projectId: text('project_id')
+    .notNull()
+    .references(() => project.id, { onDelete: 'cascade' }),
+  /**
+   * Published revision, 0 until the first publish. It moves only on publish
+   * because the runtime polls `/v1/config/version` and refetches the document
+   * whenever this number changes - bumping it per keystroke would make every
+   * visitor re-download a config that is not live yet.
+   */
+  version: integer('version').notNull().default(0),
+  /** The working copy. Always present: a widget is created with its defaults. */
+  draftValues: jsonb('draft_values').notNull().default({}),
+  /** What visitors get. Null means unpublished, which `/v1/config` serves as 404. */
+  publishedValues: jsonb('published_values'),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * A visitor session: the anonymous identity a widget mints on first load, plus any
+ * traits the host page later attaches through `identify`.
+ *
+ * Deliberately thinner than the `session` table this is ported from. That one also
+ * stored country, device, OS and a browser fingerprint - analytics dimensions
+ * rather than identity, and the country lookup needed a bundled IP database.
+ * Anything a deploy wants beyond these columns goes in `meta`.
+ */
+export const visitorSession = pgTable(
+  'visitor_session',
   {
-    id: text('id').primaryKey(),
-    widgetId: text('widget_id')
-      .notNull()
-      .references(() => widget.id, { onDelete: 'cascade' }),
+    id: uuid('id').primaryKey(),
     projectId: text('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
-    version: integer('version').notNull(),
-    /** `draft`, `published` or `archived`. */
-    status: text('status').notNull().default('draft'),
-    values: jsonb('values').notNull().default({}),
-    publishedAt: timestamp('published_at', { withTimezone: true }),
+    /**
+     * Long-lived handle kept in the visitor's `localStorage`. Presenting it restores
+     * the session, so it is treated as a credential: random UUID, never derived from
+     * anything guessable, and unique so a restore cannot match two rows.
+     */
+    restoreId: uuid('restore_id').notNull().unique(),
+    externalId: text('external_id'),
+    name: text('name'),
+    email: text('email'),
+    phone: text('phone'),
+    company: text('company'),
+    /** Taken from the request, never from the body a visitor can set. */
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+    meta: jsonb('meta').notNull().default({}),
+    /** Set the first time traits arrive, so anonymous sessions are countable. */
+    identifiedAt: timestamp('identified_at', { withTimezone: true }),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Restores past this are refused. Matches the token lifetime. */
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('widget_config_version_uq').on(table.widgetId, table.version),
-    index('widget_config_status_idx').on(table.widgetId, table.status),
+    index('visitor_session_project_idx').on(table.projectId),
+    index('visitor_session_external_idx').on(table.externalId),
+    index('visitor_session_expires_idx').on(table.expiresAt),
+  ],
+);
+
+/** Events a widget reports against a visitor session. Write-only for now. */
+export const visitorEvent = pgTable(
+  'visitor_event',
+  {
+    id: uuid('id').primaryKey(),
+    sessionId: uuid('session_id')
+      .notNull()
+      .references(() => visitorSession.id, { onDelete: 'cascade' }),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    /** Null once the widget is deleted, so the history outlives it. */
+    widgetId: text('widget_id').references(() => widget.id, { onDelete: 'set null' }),
+    type: text('type').notNull().default('click'),
+    name: text('name').notNull(),
+    url: text('url'),
+    metadata: jsonb('metadata').notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('visitor_event_session_idx').on(table.sessionId),
+    index('visitor_event_widget_idx').on(table.widgetId, table.createdAt),
   ],
 );
 
@@ -122,13 +184,16 @@ export const projectRelations = relations(project, ({ many }) => ({
   widgets: many(widget),
 }));
 
-export const widgetRelations = relations(widget, ({ one, many }) => ({
+export const widgetRelations = relations(widget, ({ one }) => ({
   project: one(project, { fields: [widget.projectId], references: [project.id] }),
   template: one(widgetTemplate, {
     fields: [widget.templateId],
     references: [widgetTemplate.id],
   }),
-  configs: many(widgetConfig),
+  config: one(widgetConfig, {
+    fields: [widget.id],
+    references: [widgetConfig.widgetId],
+  }),
   health: one(widgetHealth, {
     fields: [widget.id],
     references: [widgetHealth.widgetId],
@@ -144,12 +209,8 @@ export type WidgetTemplate = typeof widgetTemplate.$inferSelect;
 export type Widget = typeof widget.$inferSelect;
 export type WidgetConfigRow = typeof widgetConfig.$inferSelect;
 export type WidgetHealthRow = typeof widgetHealth.$inferSelect;
-
-export const CONFIG_STATUS = {
-  draft: 'draft',
-  published: 'published',
-  archived: 'archived',
-} as const;
+export type VisitorSessionRow = typeof visitorSession.$inferSelect;
+export type VisitorEventRow = typeof visitorEvent.$inferSelect;
 
 export const WIDGET_STATUS = {
   active: 'active',

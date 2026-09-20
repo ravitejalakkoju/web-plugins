@@ -80,10 +80,11 @@ Three things worth knowing:
 
 - **`openUrl` instead of `window.top.location`.** The host performs the navigation, and rejects
   anything that is not `http(s)`. Your iframe is cross-origin and cannot do it directly.
-- **Identity and analytics degrade quietly.** `identify` needs an `IDENTITY_BASE_URL`; without one it
-  resolves to `null` and stores nothing. `track` fans out to GA4 when `analytics.gtagId` is set and to
-  the identity service when it is configured, is a no-op with neither, and is suppressed entirely in
-  preview mode. Write the widget so both are a bonus, not a precondition.
+- **Identity and analytics degrade quietly.** `identify` needs identity to be enabled on the server; it
+  is by default, but a deploy can set `IDENTITY_ENABLED=false`, in which case it resolves to `null` and
+  stores nothing. `track` fans out to GA4 when `analytics.gtagId` is set and to the session service when
+  identity is on, is a no-op with neither, and is suppressed entirely in preview mode. Write the widget
+  so both are a bonus, not a precondition.
 - **Messages are origin-pinned in both directions.** The client only accepts messages from the host
   origin declared in its URL, and only posts back to that origin. A page on another site cannot drive
   your widget.
@@ -258,5 +259,11 @@ window.WebPlugins.registerEnricher({
 ```
 
 Enrichers run in ascending `priority`, at most once per visitor per `getCacheKey`, and only when
-identity is enabled. On a conflicting field the more trusted source wins: a JWT claim beats an
-explicit `user.set()`, which beats an enricher.
+identity is enabled. On a conflicting field the more trusted source wins: a JWT claim beats an explicit
+`user.set()`, which beats an enricher.
+
+One subtlety in that ordering. The session service echoes back whatever was just sent to it, so an echo
+is not treated as a JWT claim - otherwise the first `user.set()` would relabel every field as
+server-confirmed and freeze it, and no later call could correct a name or email. A claim only counts as
+higher-trust when the server returns a value that differs from the one sent, which is what a real
+upstream identity provider does.

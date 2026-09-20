@@ -18,7 +18,6 @@ const SAVE_LABELS: Record<SaveState, string> = {
 
 export function WidgetEditorPage({ data }: { data: EditorPageData }) {
   const [values, setValues] = useState<Record<string, unknown>>(data.values);
-  const [version, setVersion] = useState(data.version);
   const [saveState, setSaveState] = useState<SaveState>('clean');
   const [error, setError] = useState<string | null>(null);
   const [published, setPublished] = useState(data.published);
@@ -27,22 +26,28 @@ export function WidgetEditorPage({ data }: { data: EditorPageData }) {
 
   const timer = useRef<number | null>(null);
   const pending = useRef<Record<string, unknown> | null>(null);
+  /** Whether the last save attempt failed, so publish can refuse to run. */
+  const unsaved = useRef(false);
 
-  const flush = useCallback(async () => {
+  /** Returns whether the server now holds what the form shows. */
+  const flush = useCallback(async (): Promise<boolean> => {
     const next = pending.current;
-    if (!next) return;
+    if (!next) return !unsaved.current;
     pending.current = null;
 
     setSaveState('saving');
     try {
       const saved = await api.saveDraft(data.widget.id, next);
-      setVersion(saved.version);
+      unsaved.current = false;
       setSaveState(pending.current ? 'dirty' : 'saved');
       setError(null);
-      setDirtySincePublish(true);
+      setDirtySincePublish(saved.hasUnpublishedChanges);
+      return true;
     } catch (cause) {
+      unsaved.current = true;
       setSaveState('error');
       setError(cause instanceof Error ? cause.message : 'could not save draft');
+      return false;
     }
   }, [data.widget.id]);
 
@@ -88,7 +93,11 @@ export function WidgetEditorPage({ data }: { data: EditorPageData }) {
     setError(null);
     try {
       if (timer.current !== null) window.clearTimeout(timer.current);
-      await flush();
+      // Publish promotes whatever the server holds. If the pending save failed we
+      // would publish the previous values while the form shows the new ones, so
+      // stop here and leave the save error on screen.
+      if (!(await flush())) return;
+
       const result = await api.publish(data.widget.id);
       setPublished({ version: result.version, publishedAt: result.publishedAt });
       setDirtySincePublish(false);
@@ -165,7 +174,7 @@ export function WidgetEditorPage({ data }: { data: EditorPageData }) {
 
         <div class="space-y-4 xl:sticky xl:top-6">
           <div class="h-[32rem]">
-            <Preview widgetId={data.widget.id} config={values} version={version} />
+            <Preview widgetId={data.widget.id} config={values} version={published?.version ?? 0} />
           </div>
 
           <div class="wp-card space-y-2 p-4">
@@ -177,12 +186,12 @@ export function WidgetEditorPage({ data }: { data: EditorPageData }) {
             <CopyField value={data.installSnippet} />
             <div class="flex flex-wrap gap-x-5 gap-y-1 pt-1 text-xs text-ink-500">
               <span>
-                Draft <span class="text-ink-700">v{version}</span>
-              </span>
-              <span>
                 Published{' '}
                 <span class="text-ink-700">{published ? `v${published.version}` : 'no'}</span>
               </span>
+              {published && dirtySincePublish ? (
+                <span class="text-amber-700">Unpublished changes</span>
+              ) : null}
               <a href={`/admin/widgets/${data.widget.id}/health`} class="hover:text-ink-900">
                 View health
               </a>

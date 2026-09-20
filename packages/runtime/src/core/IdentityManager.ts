@@ -9,9 +9,11 @@ import type { ResolvedIdentity } from './types.js';
  * source-priority merge that stops a low-trust enricher from overwriting a JWT
  * claim.
  *
- * Changed: it is inert unless a base URL is configured (the session service is
- * not part of v1), and enrichers are registered by the host page instead of one
- * payment-provider enricher being compiled in.
+ * Changed: the endpoints moved under `/v1/sessions` to sit with the rest of the
+ * visitor-facing API, it is inert unless a base URL is configured (set
+ * `IDENTITY_ENABLED=false` on the server to switch it off), and enrichers are
+ * registered by the host page instead of one payment-provider enricher being
+ * compiled in.
  */
 
 const IDENTITY_KEY = 'wp_identity';
@@ -181,7 +183,10 @@ export class IdentityManager {
       token,
       fields: {
         externalId: field(claims.externalId),
-        name: field(claims.name ?? 'Anonymous User'),
+        // No 'Anonymous User' placeholder here, unlike the original. Writing one
+        // recorded a display default as a `jwt`-sourced field, which then outranked
+        // every real name the host page supplied. `resolve` applies the fallback.
+        name: field(claims.name),
         email: field(claims.email),
         phone: field(claims.phone),
         company: field(claims.company),
@@ -294,7 +299,7 @@ export class IdentityManager {
         const restoreId = this.readRestoreId();
         if (restoreId) {
           const restored = await this.postJson<{ token: string; restoreId: string }>(
-            '/sessions/restore',
+            '/v1/sessions/restore',
             { restoreId },
           );
           if (restored?.token) {
@@ -305,7 +310,7 @@ export class IdentityManager {
           }
         }
 
-        const created = await this.postJson<{ token: string; restoreId: string }>('/sessions');
+        const created = await this.postJson<{ token: string; restoreId: string }>('/v1/sessions');
         if (created?.token) {
           this.writeStored(this.fromToken(created.token), { emit: true });
           this.writeRestoreId(created.restoreId);
@@ -419,26 +424,34 @@ export class IdentityManager {
     stored.meta = this.withPageMeta({ ...(stored.meta ?? {}), ...(user.meta ?? {}) });
 
     const resolved = this.resolve(stored);
+    const fields = stored.fields ?? {};
     const response = await this.postJson<{ token: string; restoreId: string }>(
-      '/sessions/identify',
+      '/v1/sessions/identify',
       {
-        token: resolved.token,
-        externalId: resolved.externalId,
-        name: resolved.name,
-        email: resolved.email,
-        phone: resolved.phone,
-        company: resolved.company,
+        token: stored.token,
+        // Sent from the fields rather than from `resolved`, which carries display
+        // fallbacks. Posting those would persist 'Anonymous User' as a real name.
+        externalId: fields.externalId?.value,
+        name: fields.name?.value,
+        email: fields.email?.value,
+        phone: fields.phone?.value,
+        company: fields.company?.value,
         sourceUrl: resolved.meta?.sourceUrl,
         referrerUrl: resolved.meta?.referrerUrl,
       },
-      resolved.token,
+      stored.token,
     );
 
     if (response?.token) {
       const next = this.fromToken(response.token, stored.meta);
-      // Keep higher-trust values that the server does not echo back.
-      for (const [key, field] of Object.entries(stored.fields ?? {})) {
-        if (field && !next.fields[key]) next.fields[key] = field;
+      // The response echoes back what was just sent, so a claim appearing in it is
+      // not evidence of a higher-trust source. Keep the source each field already
+      // had unless the server actually changed the value, otherwise the first
+      // identify would relabel everything `jwt` and freeze it against later calls.
+      for (const [key, field] of Object.entries(fields)) {
+        if (!field) continue;
+        const echoed = next.fields[key];
+        if (!echoed || echoed.value === field.value) next.fields[key] = field;
       }
       this.writeStored(next, { emit: true });
       this.writeRestoreId(response.restoreId);
@@ -460,7 +473,7 @@ export class IdentityManager {
     if (!identity?.token) return;
 
     await this.postJson(
-      '/sessions/events',
+      '/v1/sessions/events',
       {
         type: 'click',
         name,

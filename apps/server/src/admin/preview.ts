@@ -3,8 +3,6 @@ const escapeAttr = (value: string): string =>
 
 export interface PreviewPageInput {
   scriptUrl: string;
-  /** Origin of the panel, so the ready ping is not broadcast. */
-  parentOrigin: string;
 }
 
 /**
@@ -14,8 +12,13 @@ export interface PreviewPageInput {
  * widget with no host origin to postMessage back to - so RPC, and therefore any
  * iframe widget, could never work in preview. A real URL fixes that and lets the
  * runtime use its normal storage paths.
+ *
+ * The page sends nothing back. Readiness is decided by the panel, which is
+ * same-origin with this frame and can read its `document.readyState` directly -
+ * a handshake here would be lost whenever the frame loaded before the panel
+ * hydrated.
  */
-export function renderPreviewPage({ scriptUrl, parentOrigin }: PreviewPageInput): string {
+export function renderPreviewPage({ scriptUrl }: PreviewPageInput): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -48,13 +51,6 @@ export function renderPreviewPage({ scriptUrl, parentOrigin }: PreviewPageInput)
 <body>
 <p class="hint">Preview page &mdash; your widget renders over this.</p>
 <script src="${escapeAttr(scriptUrl)}"></script>
-<script>
-  // Tell the panel the runtime has booted, so the first config push is not sent
-  // before the host is listening for it.
-  window.addEventListener('load', function () {
-    parent.postMessage({ wp: 1, event: 'preview:ready' }, ${JSON.stringify(parentOrigin)});
-  });
-</script>
 </body>
 </html>`;
 }

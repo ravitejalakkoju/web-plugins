@@ -1,6 +1,6 @@
 import type { WidgetConfig } from '@web-plugins/protocol/config';
 import type { WidgetFrame } from '../WidgetFrame.js';
-import type { ResolvedIdentity, RuntimeMode } from '../core/types.js';
+import type { RuntimeMode } from '../core/types.js';
 
 export type HostState = 'none' | 'expand' | 'collapse';
 
@@ -22,11 +22,13 @@ export interface ChromeContext {
   getState(): HostState;
 }
 
+/**
+ * Deliberately two members. Identity and open/close state reach the widget through
+ * `frame`, which the host already holds, so a strategy has nothing to forward.
+ */
 export interface ChromeInstance {
   /** Present when the strategy mounted an iframe. */
   frame: WidgetFrame | null;
-  onIdentity?(identity: ResolvedIdentity | null): void;
-  onStateChange?(state: HostState): void;
   destroy(): void;
 }
 

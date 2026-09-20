@@ -36,8 +36,8 @@ const { valid, errors } = validateConfig(schema, values);
 `validateConfig` coerces types and applies defaults in place, because configs arrive from HTML forms
 where every number is a string. Compiled validators are cached by schema.
 
-Also here: `validateCoreConfig` (core keys only, tolerant of unknown ones) and `isConfigComplete`,
-which is what decides whether a widget shows as `CONFIG_REQUIRED` in health.
+Also here: `isConfigComplete`, which is what decides whether a widget shows as `CONFIG_REQUIRED` in
+health. It falls back to the core schema when a widget has no template parts of its own.
 
 See the [config contract](../../docs/config-contract.md) for what the keys mean.
 
@@ -51,6 +51,10 @@ if (!isEnvelopeFor(event.data, widgetId)) return; // wrong protocol, or another 
 
 Every message carries `wp` (protocol version) and `widgetId`, which is what lets several widgets share
 a page without reading each other's messages.
+
+The same module holds the one message that is not host-to-widget: `previewConfigMessage()` and
+`isPreviewConfig()`, which the admin panel and the runtime use to push an unpublished config into a
+preview frame. It lives here so renaming the event cannot leave the two sides disagreeing.
 
 ## Health
 

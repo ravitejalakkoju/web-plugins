@@ -6,6 +6,7 @@ import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { verifyPreviewToken } from '../lib/tokens.js';
 import { resolveRuntimeBundlePath } from '../lib/runtime-bundle.js';
+import { sessionRoutes } from './sessions.js';
 
 const heartbeatSchema = {
   type: 'object',
@@ -33,10 +34,16 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
   await app.register(cors, {
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
-    // No credentials: these routes are anonymous by design.
+    // No credentials: these routes are anonymous by design. `Authorization` is
+    // used by the session routes, and the default reflection of
+    // Access-Control-Request-Headers allows it through preflight.
     credentials: false,
     maxAge: 86400,
   });
+
+  // Visitor identity. A child scope, so it can accept an empty JSON body without
+  // the heartbeat below doing the same.
+  await app.register(sessionRoutes);
 
   const canReadDraft = (widgetId: string, token: string | undefined): boolean =>
     Boolean(token) && verifyPreviewToken(app.env.previewTokenSecret, token!, widgetId);

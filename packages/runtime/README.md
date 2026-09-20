@@ -59,10 +59,15 @@ A custom presentation, registered from the host page, needs no server change:
 
 ```js
 window.WebPlugins.registerChrome('banner', (context) => {
-  // context: { config, shadow, stylesheet, open, close, track, getState }
+  // context: { config, shadow, stylesheet, align, open, close, toggle, track, getState }
   return { frame: null, destroy() {} };
 });
 ```
+
+Two members are all a strategy owes: the `frame` it mounted (or `null`), and `destroy`. Identity and
+open/close state reach the widget through the frame, which the host already holds, so there is nothing
+to forward. Strategies that do mount an iframe call `mountFrame(context, variant)` rather than
+constructing one.
 
 Importing the ESM build instead of the IIFE gives you `WidgetHost`, `WidgetFrame`, `getScriptMeta`, and
 the chrome registry directly.

@@ -84,7 +84,10 @@ export function WidgetListPage({ data }: { data: WidgetsPageData }) {
                     <div>
                       <dt class="inline">Published </dt>
                       <dd class="inline text-ink-700">
-                        {widget.publishedVersion === null ? 'no' : `v${widget.publishedVersion}`}
+                        {widget.published ? `v${widget.version}` : 'no'}
+                        {widget.published && widget.hasUnpublishedChanges ? (
+                          <span class="text-amber-700"> · changes pending</span>
+                        ) : null}
                       </dd>
                     </div>
                     <div>

@@ -3,6 +3,12 @@ import { templateSummary, widgetDetail, widgetSummary } from '../admin/presenter
 import { DEFAULT_PROJECT_ID } from '../db/seed.js';
 import { notFound } from '../lib/errors.js';
 import { createPreviewToken } from '../lib/tokens.js';
+import {
+  draftValues,
+  hasUnpublishedChanges,
+  isPublished,
+  publishedValues,
+} from '../services/widget.service.js';
 import { requireAuth } from './auth.js';
 
 const createWidgetSchema = {
@@ -89,14 +95,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
     return {
       widget: widgetDetail(found.widget, found.template),
-      draft: found.draft ? { version: found.draft.version, values: found.draft.values } : null,
-      published: found.published
+      values: draftValues(found),
+      published: isPublished(found)
         ? {
-            version: found.published.version,
-            values: found.published.values,
-            publishedAt: found.published.publishedAt?.toISOString() ?? null,
+            version: found.config?.version ?? 0,
+            values: publishedValues(found),
+            publishedAt: found.config?.publishedAt?.toISOString() ?? null,
           }
         : null,
+      hasUnpublishedChanges: hasUnpublishedChanges(found),
       installSnippet: app.installSnippet(found.widget.id),
     };
   });
@@ -128,8 +135,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return {
       schema: app.services.widgets.schemaFor(found.widget),
       fields: app.services.widgets.formFieldsFor(found.widget),
-      values: found.draft?.values ?? found.published?.values ?? {},
-      version: found.draft?.version ?? found.published?.version ?? 0,
+      values: draftValues(found),
     };
   });
 
@@ -137,16 +143,16 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     '/api/widgets/:id/config',
     { schema: { body: saveConfigSchema } },
     async (request) => {
-      const draft = await app.services.widgets.saveDraft(request.params.id, request.body.values);
-      return { version: draft.version, values: draft.values };
+      const saved = await app.services.widgets.saveDraft(request.params.id, request.body.values);
+      return { values: draftValues(saved), hasUnpublishedChanges: hasUnpublishedChanges(saved) };
     },
   );
 
   app.post<{ Params: { id: string } }>('/api/widgets/:id/publish', async (request) => {
     const published = await app.services.widgets.publish(request.params.id);
     return {
-      version: published.version,
-      publishedAt: published.publishedAt?.toISOString() ?? null,
+      version: published.config?.version ?? 0,
+      publishedAt: published.config?.publishedAt?.toISOString() ?? null,
     };
   });
 

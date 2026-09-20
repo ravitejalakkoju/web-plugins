@@ -41,7 +41,7 @@ export const api = {
     request<{ ok: true }>('PATCH', `/api/widgets/${id}`, { status }),
   deleteWidget: (id: string) => request<{ ok: true }>('DELETE', `/api/widgets/${id}`),
   saveDraft: (id: string, values: Record<string, unknown>) =>
-    request<{ version: number; values: Record<string, unknown> }>(
+    request<{ values: Record<string, unknown>; hasUnpublishedChanges: boolean }>(
       'PUT',
       `/api/widgets/${id}/config`,
       { values },

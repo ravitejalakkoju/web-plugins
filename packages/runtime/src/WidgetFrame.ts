@@ -228,10 +228,6 @@ export class WidgetFrame {
     }, 0);
   }
 
-  get isLoaded(): boolean {
-    return this.loaded;
-  }
-
   emit(event: string, payload?: unknown): void {
     this.rpc.emit(event, payload);
   }

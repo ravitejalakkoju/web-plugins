@@ -1,3 +1,7 @@
+import type { WidgetConfig } from '@web-plugins/protocol/config';
+// Imported from the `/rpc` subpath, not the package root: the root reaches the Ajv
+// validators, which would land in the panel bundle for the sake of one helper.
+import { previewConfigMessage } from '@web-plugins/protocol/rpc';
 import { useEffect, useRef, useState } from 'preact/hooks';
 
 export interface PreviewProps {
@@ -48,10 +52,10 @@ export function Preview({ widgetId, config, version }: PreviewProps) {
 
     // Debounced so a burst of keystrokes does not re-render the chrome per char.
     const timer = window.setTimeout(() => {
-      target.postMessage(
-        { wp: 1, event: 'preview:config', payload: { config, version } },
-        window.location.origin,
-      );
+      // Form state, so mid-edit it can be any shape the schema allows. Preview
+      // renders it anyway - showing an in-progress config is the whole point.
+      const message = previewConfigMessage(config as unknown as WidgetConfig, version);
+      target.postMessage(message, window.location.origin);
     }, 120);
 
     return () => window.clearTimeout(timer);

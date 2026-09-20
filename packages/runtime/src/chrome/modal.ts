@@ -1,5 +1,5 @@
-import { WidgetFrame } from '../WidgetFrame.js';
 import { el } from '../utils/dom.js';
+import { mountFrame } from './frame.js';
 import type { ChromeFactory } from './types.js';
 
 /**
@@ -8,7 +8,7 @@ import type { ChromeFactory } from './types.js';
  * `WebPlugins.get(id).open()`.
  */
 export const modalChrome: ChromeFactory = (context) => {
-  const { config, stylesheet, shadow } = context;
+  const { stylesheet, shadow } = context;
 
   stylesheet.append(`
     .wp-backdrop {
@@ -40,26 +40,8 @@ export const modalChrome: ChromeFactory = (context) => {
   const shell = el('div', { classes: ['wp-modal-shell'] });
   shadow.appendChild(shell);
 
-  let frame: WidgetFrame | null = null;
-
-  if (config.src) {
-    frame = new WidgetFrame(
-      {
-        widgetId: context.widgetId,
-        src: config.src,
-        mode: context.mode,
-        version: context.version,
-        previewToken: context.previewToken,
-        variant: 'modal',
-        frame: config.frame,
-      },
-      stylesheet,
-    );
-    shell.appendChild(frame.host);
-    frame.load();
-  } else {
-    console.warn('[web-plugins] chrome "modal" needs config.src to render anything');
-  }
+  const frame = mountFrame(context, 'modal', shell);
+  if (!frame) console.warn('[web-plugins] chrome "modal" needs config.src to render anything');
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape' && context.getState() === 'expand') context.close();
@@ -68,9 +50,6 @@ export const modalChrome: ChromeFactory = (context) => {
 
   return {
     frame,
-    onIdentity(identity) {
-      frame?.onIdentity(identity);
-    },
     destroy() {
       window.removeEventListener('keydown', onKeyDown);
       frame?.destroy();

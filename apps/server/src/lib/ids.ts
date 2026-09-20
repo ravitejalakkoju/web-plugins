@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 
 const ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
@@ -13,16 +13,4 @@ export function shortId(length = 12): string {
     out += ALPHABET[bytes[index]! % ALPHABET.length];
   }
   return out;
-}
-
-export const uuid = (): string => randomUUID();
-
-/** Lowercase, hyphenated identifier derived from a display name. */
-export function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48);
 }

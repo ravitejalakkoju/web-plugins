@@ -1,7 +1,7 @@
 import type { WidgetConfig } from '@web-plugins/protocol';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client.js';
-import { CONFIG_STATUS, WIDGET_STATUS, widget, widgetConfig } from '../db/schema.js';
+import { WIDGET_STATUS, widget, widgetConfig } from '../db/schema.js';
 
 export interface ConfigEnvelope {
   widgetId: string;
@@ -14,8 +14,8 @@ export interface ConfigEnvelope {
 }
 
 /**
- * Read side of the config contract. Serves published rows only; a draft needs a
- * preview token, which the route checks before asking for `'draft'`.
+ * Read side of the config contract. Serves the published column only; reading the
+ * draft needs a preview token, which the route checks before asking for it.
  */
 export class ConfigService {
   constructor(
@@ -23,41 +23,49 @@ export class ConfigService {
     private readonly options: { identityBaseUrl: string | null },
   ) {}
 
-  private async resolveRow(widgetId: string, status: string) {
+  /**
+   * The document to serve, or null when there is nothing to serve. Unknown widget,
+   * never published, unpublished and disabled all collapse to null on purpose:
+   * from outside they must be indistinguishable.
+   */
+  private async resolve(
+    widgetId: string,
+    includeDraft: boolean,
+  ): Promise<{ version: number; values: WidgetConfig } | null> {
     const [row] = await this.db
       .select({
-        widgetId: widget.id,
         widgetStatus: widget.status,
         version: widgetConfig.version,
-        values: widgetConfig.values,
+        draftValues: widgetConfig.draftValues,
+        publishedValues: widgetConfig.publishedValues,
       })
       .from(widget)
-      .innerJoin(
-        widgetConfig,
-        and(eq(widgetConfig.widgetId, widget.id), eq(widgetConfig.status, status)),
-      )
+      .innerJoin(widgetConfig, eq(widgetConfig.widgetId, widget.id))
       .where(eq(widget.id, widgetId))
       .limit(1);
 
     if (!row) return null;
     if (row.widgetStatus !== WIDGET_STATUS.active) return null;
-    return row;
+
+    const values = (includeDraft ? row.draftValues : row.publishedValues) as WidgetConfig | null;
+    if (!values) return null;
+
+    return { version: row.version, values };
   }
 
   async getEnvelope(
     widgetId: string,
     options: { includeDraft?: boolean } = {},
   ): Promise<ConfigEnvelope | null> {
-    const status = options.includeDraft ? CONFIG_STATUS.draft : CONFIG_STATUS.published;
-    const row = await this.resolveRow(widgetId, status);
-    if (!row) return null;
+    const resolved = await this.resolve(widgetId, options.includeDraft === true);
+    if (!resolved) return null;
 
     return {
-      widgetId: row.widgetId,
-      version: row.version,
-      // The version travels inside the config too: the runtime forwards it to
-      // the iframe and reports it on every heartbeat.
-      config: { ...(row.values as WidgetConfig), version: row.version },
+      widgetId,
+      version: resolved.version,
+      // The version travels inside the config too: the runtime forwards it to the
+      // iframe and reports it on every heartbeat.
+      config: { ...resolved.values, version: resolved.version },
       runtime: {
         identityBaseUrl: this.options.identityBaseUrl,
         protocol: 1,
@@ -69,9 +77,8 @@ export class ConfigService {
     widgetId: string,
     options: { includeDraft?: boolean } = {},
   ): Promise<{ widgetId: string; version: number } | null> {
-    const status = options.includeDraft ? CONFIG_STATUS.draft : CONFIG_STATUS.published;
-    const row = await this.resolveRow(widgetId, status);
-    if (!row) return null;
-    return { widgetId: row.widgetId, version: row.version };
+    const resolved = await this.resolve(widgetId, options.includeDraft === true);
+    if (!resolved) return null;
+    return { widgetId, version: resolved.version };
   }
 }

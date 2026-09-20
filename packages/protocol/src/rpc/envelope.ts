@@ -6,6 +6,8 @@
  * always posted to the frame's exact origin, never `'*'`.
  */
 
+import type { WidgetConfig } from '../config/types.js';
+
 export const PROTOCOL_VERSION = 1 as const;
 
 export type ProtocolVersion = typeof PROTOCOL_VERSION;
@@ -88,6 +90,35 @@ export interface IdentifyPayload {
   phone?: string;
   company?: string;
   meta?: Record<string, unknown>;
+}
+
+/**
+ * Admin panel -> preview runtime. Not an `RpcEnvelope`: it crosses from the panel
+ * page into the preview iframe's host rather than between a host and its widget,
+ * so it carries no `widgetId` and expects no reply.
+ *
+ * It lives here so the panel and the runtime cannot drift apart on a string.
+ */
+export const PREVIEW_EVENTS = {
+  config: 'preview:config',
+} as const;
+
+export interface PreviewConfigMessage {
+  wp: ProtocolVersion;
+  event: typeof PREVIEW_EVENTS.config;
+  payload: { config: WidgetConfig; version: number };
+}
+
+export function previewConfigMessage(config: WidgetConfig, version: number): PreviewConfigMessage {
+  return { wp: PROTOCOL_VERSION, event: PREVIEW_EVENTS.config, payload: { config, version } };
+}
+
+export function isPreviewConfig(data: unknown): data is PreviewConfigMessage {
+  if (!data || typeof data !== 'object') return false;
+  const candidate = data as Partial<PreviewConfigMessage>;
+  if (candidate.wp !== PROTOCOL_VERSION) return false;
+  if (candidate.event !== PREVIEW_EVENTS.config) return false;
+  return Boolean(candidate.payload && typeof candidate.payload.config === 'object');
 }
 
 export function isRpcEnvelope(data: unknown): data is RpcEnvelope {

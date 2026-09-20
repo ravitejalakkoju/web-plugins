@@ -8,10 +8,24 @@ import {
 } from '@web-plugins/protocol';
 import { eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.js';
-import { widget, widgetHealth } from '../db/schema.js';
-import type { WidgetService, WidgetWithConfigs } from './widget.service.js';
+import { widget, widgetHealth, type WidgetHealthRow } from '../db/schema.js';
+import {
+  isPublished,
+  publishedValues,
+  draftValues,
+  type WidgetRecord,
+  type WidgetService,
+} from './widget.service.js';
 
 export type HealthSummary = Pick<HealthSnapshot, 'derivedStatus' | 'lastSeenAgoSeconds'>;
+
+/** The four values that both the list badge and the detail view need. */
+interface DerivedHealth {
+  derivedStatus: HealthSnapshot['derivedStatus'];
+  lastSeenAgoSeconds: number | null;
+  configComplete: boolean;
+  configDeployed: boolean;
+}
 
 const MAX_URL = 2048;
 const MAX_MESSAGE = 512;
@@ -86,10 +100,41 @@ export class HealthService {
   }
 
   /**
+   * Turn a config record and its heartbeat row into a status. The only place the
+   * rules live, so the list badge and the detail view can never disagree.
+   *
+   * Completeness is judged against whichever document is live, falling back to the
+   * draft for a widget that has never been published - otherwise an unpublished
+   * widget would always read as incomplete and hide the real reason it is offline.
+   */
+  private derive(record: WidgetRecord, row: WidgetHealthRow | undefined): DerivedHealth {
+    const lastSeenAt = row?.lastSeenAt ?? null;
+    const configDeployed = isPublished(record);
+    const configComplete = isConfigComplete(
+      publishedValues(record) ?? draftValues(record),
+      this.widgets.schemaFor(record.widget),
+    );
+
+    return {
+      configComplete,
+      configDeployed,
+      derivedStatus: deriveWidgetStatus({
+        configComplete,
+        configDeployed,
+        lastSeenAt,
+        lastHealthStatus: (row?.lastHealthStatus as HealthStatus | null) ?? null,
+      }),
+      lastSeenAgoSeconds: lastSeenAt
+        ? Math.max(0, Math.round((Date.now() - lastSeenAt.getTime()) / 1000))
+        : null,
+    };
+  }
+
+  /**
    * Status for a whole list in one query. The list page needs a badge per row,
    * and per-row `getSnapshot` calls would re-read every widget and config.
    */
-  async summaries(widgets: WidgetWithConfigs[]): Promise<Map<string, HealthSummary>> {
+  async summaries(widgets: WidgetRecord[]): Promise<Map<string, HealthSummary>> {
     const result = new Map<string, HealthSummary>();
     if (widgets.length === 0) return result;
 
@@ -106,23 +151,11 @@ export class HealthService {
     const byWidget = new Map(rows.map((row) => [row.widgetId, row]));
 
     for (const entry of widgets) {
-      const row = byWidget.get(entry.widget.id);
-      const lastSeenAt = row?.lastSeenAt ?? null;
-
-      result.set(entry.widget.id, {
-        derivedStatus: deriveWidgetStatus({
-          configComplete: isConfigComplete(
-            entry.published?.values ?? entry.draft?.values ?? null,
-            this.widgets.schemaFor(entry.widget),
-          ),
-          configDeployed: Boolean(entry.published),
-          lastSeenAt,
-          lastHealthStatus: (row?.lastHealthStatus as HealthStatus | null) ?? null,
-        }),
-        lastSeenAgoSeconds: lastSeenAt
-          ? Math.max(0, Math.round((Date.now() - lastSeenAt.getTime()) / 1000))
-          : null,
-      });
+      const { derivedStatus, lastSeenAgoSeconds } = this.derive(
+        entry,
+        byWidget.get(entry.widget.id),
+      );
+      result.set(entry.widget.id, { derivedStatus, lastSeenAgoSeconds });
     }
 
     return result;
@@ -138,35 +171,16 @@ export class HealthService {
       .where(eq(widgetHealth.widgetId, widgetId))
       .limit(1);
 
-    const configDeployed = Boolean(found.published);
-    const configComplete = isConfigComplete(
-      found.published?.values ?? found.draft?.values ?? null,
-      this.widgets.schemaFor(found.widget),
-    );
-
-    const lastSeenAt = row?.lastSeenAt ?? null;
-    const lastHealthStatus = (row?.lastHealthStatus as HealthStatus | null) ?? null;
-
     return {
       widgetId,
-      lastSeenAt: lastSeenAt ? lastSeenAt.toISOString() : null,
+      lastSeenAt: row?.lastSeenAt ? row.lastSeenAt.toISOString() : null,
       lastVisibleAt: row?.lastVisibleAt ? row.lastVisibleAt.toISOString() : null,
-      lastHealthStatus,
+      lastHealthStatus: (row?.lastHealthStatus as HealthStatus | null) ?? null,
       lastConfigVersion: row?.lastConfigVersion ?? null,
       lastPageUrl: row?.lastPageUrl ?? null,
       lastErrorCode: row?.lastErrorCode ?? null,
       lastErrorMessage: row?.lastErrorMessage ?? null,
-      derivedStatus: deriveWidgetStatus({
-        configComplete,
-        configDeployed,
-        lastSeenAt,
-        lastHealthStatus,
-      }),
-      lastSeenAgoSeconds: lastSeenAt
-        ? Math.max(0, Math.round((Date.now() - lastSeenAt.getTime()) / 1000))
-        : null,
-      configComplete,
-      configDeployed,
+      ...this.derive(found, row),
     };
   }
 }

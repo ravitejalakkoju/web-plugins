@@ -15,6 +15,8 @@ const CLOSE_ICON = `
 export function createCallout(
   config: WidgetConfig,
   stylesheet: HTMLStyleElement,
+  /** Which side the pill animates from. Comes from the host, which resolves it per viewport. */
+  hostAlign: 'left' | 'right' | 'center',
   onOpen: () => void,
 ): HTMLElement | null {
   const callout = config.launcher?.callout;
@@ -121,7 +123,7 @@ export function createCallout(
     }
   `);
 
-  const align = config.placement?.desktop?.align === 'left' ? 'left' : 'right';
+  const align = hostAlign === 'left' ? 'left' : 'right';
   const wrapper = el('div', {
     classes: ['wp-callout', `wp-callout--${mode}`, `wp-callout--${align}`],
   });

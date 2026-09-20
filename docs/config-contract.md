@@ -24,8 +24,9 @@ Core keys are defined and validated by `@web-plugins/protocol`
 the platform: only the widget's own schema says what belongs in them, and the runtime hands them to
 the iframe untouched.
 
-`version` is also present on a served config, stamped by the server. It is hidden in the admin form
-and you never set it by hand.
+`version` is also present on a served config, stamped by the server. It is the published revision and
+moves only when you publish, which is what installed runtimes poll to decide whether to refetch. It is
+hidden in the admin form and you never set it by hand.
 
 ## Core keys
 
@@ -88,8 +89,9 @@ rule that fails hides the widget on both devices. This decides whether the widge
 ### `colors`
 
 `primaryColor` is required and must be a hex code. `primaryTextColor`, `secondaryTextColor`, and
-`primaryBackgroundColor` are optional. The runtime derives hover and active shades from
-`primaryColor` itself, so a single color is enough for a coherent launcher.
+`primaryBackgroundColor` are optional. When `primaryTextColor` is absent the runtime picks black or
+white by the luminance of `primaryColor`, so the launcher glyph stays readable on any brand color.
+Hover and active states are a scale transform, not a derived shade, which is why one color is enough.
 
 ### `placement`
 

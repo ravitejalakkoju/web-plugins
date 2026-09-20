@@ -21,6 +21,27 @@ export interface LauncherButtonOptions {
 }
 
 /**
+ * The box that holds the launcher, its tooltip and its callout. Shared by every
+ * chrome that shows a launcher, because the three children are positioned against
+ * it and would drift apart if each strategy sized it itself.
+ */
+export function createLauncherShell(stylesheet: HTMLStyleElement): HTMLElement {
+  stylesheet.append(`
+    .wp-shell {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      z-index: 100;
+    }
+  `);
+
+  return el('div', { classes: ['wp-shell'] });
+}
+
+/**
  * The floating action button. Merges the near-identical launcher classes from
  * `whatsapp.js`, `support.js` and `rewards.js` into one config-driven element:
  * `launcher.icon.svg` or `launcher.icon.url` decide the glyph, and the tooltip

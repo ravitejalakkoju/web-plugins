@@ -1,5 +1,10 @@
 import type { PlacementSide, WidgetConfig } from '@web-plugins/protocol/config';
-import { HOST_EVENTS, HOST_METHODS, type IdentifyPayload } from '@web-plugins/protocol/rpc';
+import {
+  HOST_EVENTS,
+  HOST_METHODS,
+  isPreviewConfig,
+  type IdentifyPayload,
+} from '@web-plugins/protocol/rpc';
 import { getChrome } from './chrome/index.js';
 import type { ChromeInstance, HostState } from './chrome/types.js';
 import { CacheManager } from './core/CacheManager.js';
@@ -170,19 +175,21 @@ export class WidgetHost {
   }
 
   /**
-   * Identity is opt-in: the session service only exists once the chat module is
-   * deployed, so the manager stays inert until the server advertises a base URL.
+   * Identity is server-gated: the manager stays inert until a config envelope
+   * advertises a base URL, so a deploy that turns sessions off never has visitors
+   * minting them, and one pointing at a separate identity service is a config
+   * change rather than a different bundle.
    */
   private maybeEnableIdentity(envelope: ConfigEnvelope): void {
     const baseUrl = envelope.runtime?.identityBaseUrl;
     if (!baseUrl || this.identity.enabled) return;
 
     const manager = new IdentityManager(baseUrl);
-    manager.onIdentityUpdated = (resolved) => this.chrome?.onIdentity?.(resolved);
+    manager.onIdentityUpdated = (resolved) => this.chrome?.frame?.onIdentity(resolved);
     for (const enricher of this.pendingEnrichers) manager.registerEnricher(enricher);
     this.identity = manager;
 
-    void manager.initialize().then((resolved) => this.chrome?.onIdentity?.(resolved ?? null));
+    void manager.initialize().then((resolved) => this.chrome?.frame?.onIdentity(resolved ?? null));
   }
 
   private render(config: WidgetConfig): void {
@@ -236,7 +243,7 @@ export class WidgetHost {
     this.scheduleAutoOpen(config);
 
     const resolvedIdentity = this.identity.getIdentity();
-    if (resolvedIdentity) this.chrome.onIdentity?.(resolvedIdentity);
+    if (resolvedIdentity) this.chrome.frame?.onIdentity(resolvedIdentity);
   }
 
   private resolveAlign(config: WidgetConfig): 'left' | 'right' | 'center' {
@@ -369,15 +376,10 @@ export class WidgetHost {
     window.addEventListener('message', (event) => {
       if (this.destroyed) return;
       if (event.source !== window.parent) return;
+      if (!isPreviewConfig(event.data)) return;
 
-      const data = event.data as { wp?: number; event?: string; payload?: unknown } | null;
-      if (!data || data.wp !== 1 || data.event !== 'preview:config') return;
-
-      const payload = data.payload as { config?: WidgetConfig; version?: number } | undefined;
-      if (!payload?.config) return;
-
-      this.version = payload.version ?? this.version;
-      this.render(payload.config);
+      this.version = event.data.payload.version ?? this.version;
+      this.render(event.data.payload.config);
       this.initialized = true;
     });
   }
@@ -397,7 +399,6 @@ export class WidgetHost {
     if (!this.showByDefault) this.show();
     this.hostElement.dataset.state = 'expand';
     if (isMobileViewport()) document.body.classList.add(SCROLL_LOCK_CLASS);
-    this.chrome?.onStateChange?.('expand');
     this.chrome?.frame?.emit(HOST_EVENTS.opened, { openedAt: Date.now() });
     this.track('widget_opened', { url: window.location.href });
   }
@@ -406,7 +407,6 @@ export class WidgetHost {
     if (!this.showByDefault) this.hide();
     this.hostElement.dataset.state = 'collapse';
     document.body.classList.remove(SCROLL_LOCK_CLASS);
-    this.chrome?.onStateChange?.('collapse');
     this.chrome?.frame?.emit(HOST_EVENTS.closed, { closedAt: Date.now() });
     this.track('widget_closed', { url: window.location.href });
   }
@@ -436,10 +436,6 @@ export class WidgetHost {
 
   getConfig(): WidgetConfig | null {
     return this.config;
-  }
-
-  get isReady(): boolean {
-    return this.initialized;
   }
 
   toSdk(): WidgetSdk {
@@ -474,7 +470,7 @@ export class WidgetHost {
         set: (payload) => this.identity.identify(payload),
         clear: () => {
           this.identity.clear();
-          this.chrome?.onIdentity?.(null);
+          this.chrome?.frame?.onIdentity(null);
         },
       },
       destroy: () => this.destroy(),

@@ -40,10 +40,6 @@ export class RpcHandler {
     }
   }
 
-  get isReady(): boolean {
-    return this.ready;
-  }
-
   emit(event: string, payload?: unknown): void {
     if (this.destroyed) return;
 

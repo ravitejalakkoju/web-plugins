@@ -88,6 +88,47 @@ widget (404 otherwise). Responds `202 { ok: true }`.
 `healthStatus` is one of `OK`, `HIDDEN_BY_RULES`, `CONFIG_INVALID`, `INIT_FAILED`, or `RUNTIME_ERROR`.
 Omit it and the server infers: `initialized: false` becomes `INIT_FAILED`, anything else `OK`.
 
+### Visitor sessions
+
+Identity for visitors, served only when identity is enabled (see `IDENTITY_ENABLED` and
+`IDENTITY_BASE_URL`). The runtime's `IdentityManager` is the only intended client, and it is what fixes
+the shape of these calls, so treat the request and response bodies as a contract rather than something to
+reshape freely.
+
+Every route is anonymous, rate-limited per IP (30/min, 120/min for events), and capped at an 8 KB body.
+They all answer with the same pair:
+
+```jsonc
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9…", // HS256 JWT, 30-day expiry
+  "restoreId": "71e01fba-ba36-415a-a153-8f53a420f77e",
+}
+```
+
+The token's claims are `sub` (the session id) plus whichever of `externalId`, `name`, `email`, `phone`
+and `company` are known. The runtime decodes them client-side without asking the server, which is why
+the claim names are part of the public contract.
+
+| Route                        | Body                                          | Notes                                                                                             |
+| ---------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `POST /v1/sessions`          | empty, or trait fields                        | Mints an anonymous session. An empty body is accepted, which is what the runtime sends            |
+| `POST /v1/sessions/restore`  | `{ restoreId }`                               | Trades a stored `restoreId` for a fresh token. 404 for unknown, expired, and other projects alike |
+| `POST /v1/sessions/identify` | traits + `sourceUrl`, `referrerUrl`           | Attaches traits to the session the `Authorization: Bearer` token names                            |
+| `POST /v1/sessions/events`   | `{ name, type?, url?, widgetId?, metadata? }` | Requires a bearer token. `202 { ok: true }`                                                       |
+
+Two behaviours worth knowing:
+
+- **`identify` never merges by email or `externalId`.** It resolves a session from the bearer token and
+  nothing else. Matching on an address would let anyone take over another visitor's session by guessing
+  it. With no usable token it mints a new session carrying the traits, so identity survives a token
+  expiring rather than failing permanently.
+- **Only supplied fields are written.** A later call carrying just a phone number cannot blank out a name
+  an earlier one established, and an unknown `widgetId` on an event is dropped to null rather than
+  rejected, so a widget deleted mid-visit does not turn into a page full of failed requests.
+
+`restoreId` is a credential: whoever holds it can restore that visitor's session, which is why it is a
+random UUID and never derived from anything guessable.
+
 ## Admin
 
 Cookie session, one operator, credentials from the environment. Every route under `/api` (other than
@@ -110,23 +151,32 @@ Two guards run before anything else:
 
 ### Templates and widgets
 
-| Route                     | Returns                                                                                 |
-| ------------------------- | --------------------------------------------------------------------------------------- |
-| `GET /api/templates`      | Available templates with their name, description, chrome, and whether they need a `src` |
-| `GET /api/widgets`        | Every widget in the project with its publish state and derived health                   |
-| `POST /api/widgets`       | `{ name, templateId }` → `201 { id }`. The draft starts as the template defaults        |
-| `GET /api/widgets/:id`    | Widget, draft, published (with `publishedAt`), and the install snippet                  |
-| `PATCH /api/widgets/:id`  | `{ name?, status? }` where status is `active` or `disabled`                             |
-| `DELETE /api/widgets/:id` | Deletes the widget and its configs                                                      |
+| Route                     | Returns                                                                                                                                            |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/templates`      | Available templates with their name, description, chrome, and whether they need a `src`                                                            |
+| `GET /api/widgets`        | Every widget in the project with its publish state and derived health                                                                              |
+| `POST /api/widgets`       | `{ name, templateId }` → `201 { id }`. The draft starts as the template defaults                                                                   |
+| `GET /api/widgets/:id`    | Widget, the draft `values`, the published snapshot (with `version` and `publishedAt`, or `null`), `hasUnpublishedChanges`, and the install snippet |
+| `PATCH /api/widgets/:id`  | `{ name?, status? }` where status is `active` or `disabled`                                                                                        |
+| `DELETE /api/widgets/:id` | Deletes the widget and its configs                                                                                                                 |
 
 ### Config
 
-| Route                             | Behavior                                                                                                                              |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/widgets/:id/form`       | `{ schema, fields, values, version }` — the composed JSON Schema _and_ the derived field list, so the panel never hardcodes a form    |
-| `PUT /api/widgets/:id/config`     | `{ values }`. Validates, then writes the draft. `422` with per-field details on invalid input                                         |
-| `POST /api/widgets/:id/publish`   | Revalidates, archives the live row, promotes the draft, then opens a fresh draft at the next version so editing continues immediately |
-| `POST /api/widgets/:id/unpublish` | Archives the published row. Nothing is deleted, and `/v1/config` starts 404ing                                                        |
+| Route                             | Behavior                                                                                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/widgets/:id/form`       | `{ schema, fields, values }` — the composed JSON Schema _and_ the derived field list, so the panel never hardcodes a form. `values` is the draft |
+| `PUT /api/widgets/:id/config`     | `{ values }`. Validates, then overwrites the draft. `422` with per-field details on invalid input. Returns `{ values, hasUnpublishedChanges }`   |
+| `POST /api/widgets/:id/publish`   | Revalidates the draft, copies it over the published snapshot, and increments `version` → `{ version, publishedAt }`                              |
+| `POST /api/widgets/:id/unpublish` | Clears the published snapshot, so `/v1/config` starts 404ing. The draft is untouched, so publishing again restores it                            |
+
+A widget holds exactly two config documents: one draft and one published snapshot.
+Saving never touches what visitors see, and publishing is a copy from the first to the
+second. There is no revision history, so **publishing is not reversible** — unpublish
+takes the widget offline but does not restore the previous values.
+
+`version` is the published revision and moves only on publish, because it is what
+`/v1/config/version` reports and what every installed runtime polls. It keeps climbing
+across an unpublish and republish, so a cached config is never mistaken for a current one.
 
 Validation errors look like this, which is what the form renders inline:
 

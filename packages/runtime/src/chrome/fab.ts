@@ -1,7 +1,6 @@
-import { el } from '../utils/dom.js';
 import { resolveTemplate } from '../utils/template.js';
 import { createCallout } from './callout.js';
-import { createLauncherButton, createTooltip } from './launcher-button.js';
+import { createLauncherButton, createLauncherShell, createTooltip } from './launcher-button.js';
 import type { ChromeFactory } from './types.js';
 
 /**
@@ -17,19 +16,7 @@ export const fabChrome: ChromeFactory = (context) => {
     );
   }
 
-  stylesheet.append(`
-    .wp-shell {
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 56px;
-      height: 56px;
-      z-index: 100;
-    }
-  `);
-
-  const shell = el('div', { classes: ['wp-shell'] });
+  const shell = createLauncherShell(stylesheet);
 
   const run = () => {
     const action = config.launcher?.action;
@@ -56,7 +43,7 @@ export const fabChrome: ChromeFactory = (context) => {
   const tooltip = createTooltip(config.launcher?.tooltip);
   if (tooltip) shell.appendChild(tooltip);
 
-  const callout = createCallout(config, stylesheet, run);
+  const callout = createCallout(config, stylesheet, context.align, run);
   if (callout) shell.appendChild(callout);
 
   shadow.appendChild(shell);

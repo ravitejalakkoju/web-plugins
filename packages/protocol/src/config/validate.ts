@@ -24,7 +24,7 @@ export interface ConfigValidationResult {
  * booleans are strings. The original used `'array'`, which also wraps scalars
  * into arrays; plain coercion is enough and less surprising.
  */
-export function createValidator(): Ajv {
+function createValidator(): Ajv {
   const ajv = new AjvCtor({
     allErrors: true,
     coerceTypes: true,
@@ -73,11 +73,6 @@ export function validateConfig(schema: JsonSchema, data: unknown): ConfigValidat
   const validate = compile(schema);
   const valid = validate(data) as boolean;
   return { valid, errors: valid ? [] : formatErrors(validate.errors) };
-}
-
-/** Check only the keys the runtime depends on, ignoring template-specific ones. */
-export function validateCoreConfig(data: unknown): ConfigValidationResult {
-  return validateConfig(coreConfigSchema, data);
 }
 
 /**

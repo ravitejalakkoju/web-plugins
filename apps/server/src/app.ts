@@ -11,12 +11,14 @@ import type { Database } from './db/client.js';
 import { HttpError } from './lib/errors.js';
 import { ConfigService } from './services/config.service.js';
 import { HealthService } from './services/health.service.js';
+import { SessionService } from './services/session.service.js';
 import { WidgetService } from './services/widget.service.js';
 
 export interface AppServices {
   widgets: WidgetService;
   config: ConfigService;
   health: HealthService;
+  sessions: SessionService;
 }
 
 declare module 'fastify' {
@@ -52,6 +54,7 @@ export async function buildApp({ env, db }: BuildAppOptions): Promise<FastifyIns
     widgets,
     config: new ConfigService(db, { identityBaseUrl: env.identityBaseUrl }),
     health: new HealthService(db, widgets),
+    sessions: new SessionService(db, { tokenSecret: env.visitorTokenSecret }),
   });
   app.decorate(
     'installSnippet',

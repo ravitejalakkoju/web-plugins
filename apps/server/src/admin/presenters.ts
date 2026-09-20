@@ -1,18 +1,23 @@
 import type { TemplateSummary, WidgetDetail, WidgetSummary } from '../../admin/types.js';
 import type { Widget, WidgetTemplate } from '../db/schema.js';
 import type { HealthSummary } from '../services/health.service.js';
-import type { WidgetWithConfigs } from '../services/widget.service.js';
+import {
+  draftValues,
+  hasUnpublishedChanges,
+  isPublished,
+  publishedValues,
+  type WidgetRecord,
+} from '../services/widget.service.js';
 
 /**
  * One place where a widget becomes JSON. The admin API and the SSR panel serve
  * the same shape, so hydration cannot disagree with a later fetch.
  */
-export function widgetSummary(
-  entry: WidgetWithConfigs,
-  health: HealthSummary | null,
-): WidgetSummary {
-  const { widget, template, draft, published } = entry;
-  const effective = (published?.values ?? draft?.values ?? {}) as Record<string, unknown>;
+export function widgetSummary(entry: WidgetRecord, health: HealthSummary | null): WidgetSummary {
+  const { widget, template, config } = entry;
+  // The list shows how a widget behaves for visitors, so prefer what is live and
+  // fall back to the draft only for a widget that has never been published.
+  const effective = publishedValues(entry) ?? draftValues(entry);
 
   return {
     id: widget.id,
@@ -21,20 +26,13 @@ export function widgetSummary(
     templateId: widget.templateId,
     templateName: template?.name ?? null,
     chrome: typeof effective.chrome === 'string' ? effective.chrome : null,
-    draftVersion: draft?.version ?? null,
-    publishedVersion: published?.version ?? null,
-    publishedAt: published?.publishedAt?.toISOString() ?? null,
+    published: isPublished(entry),
+    version: config?.version ?? 0,
+    publishedAt: config?.publishedAt?.toISOString() ?? null,
     hasUnpublishedChanges: hasUnpublishedChanges(entry),
     createdAt: widget.createdAt.toISOString(),
     health,
   };
-}
-
-export function hasUnpublishedChanges(entry: WidgetWithConfigs): boolean {
-  if (!entry.draft) return false;
-  return (
-    JSON.stringify(entry.draft.values ?? null) !== JSON.stringify(entry.published?.values ?? null)
-  );
 }
 
 export function widgetDetail(widget: Widget, template: WidgetTemplate | null): WidgetDetail {

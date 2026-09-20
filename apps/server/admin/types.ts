@@ -15,8 +15,9 @@ export interface WidgetSummary {
   templateId: string | null;
   templateName: string | null;
   chrome: string | null;
-  draftVersion: number | null;
-  publishedVersion: number | null;
+  published: boolean;
+  /** Published revision. 0 means never published. */
+  version: number;
   publishedAt: string | null;
   hasUnpublishedChanges: boolean;
   createdAt: string;
@@ -40,8 +41,8 @@ export interface WidgetsPageData {
 export interface EditorPageData {
   widget: WidgetDetail;
   fields: FormField[];
+  /** The working copy. Edits are saved back to it and published from it. */
   values: Record<string, unknown>;
-  version: number;
   published: { version: number; publishedAt: string | null } | null;
   hasUnpublishedChanges: boolean;
   installSnippet: string;
