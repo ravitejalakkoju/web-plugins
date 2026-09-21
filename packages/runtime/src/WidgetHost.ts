@@ -1,4 +1,4 @@
-import type { PlacementSide, WidgetConfig } from '@web-plugins/protocol/config';
+import type { ConfigEnvelope, PlacementSide, WidgetConfig } from '@web-plugins/protocol/config';
 import {
   HOST_EVENTS,
   HOST_METHODS,
@@ -10,7 +10,7 @@ import type { ChromeInstance, HostState } from './chrome/types.js';
 import { CacheManager } from './core/CacheManager.js';
 import { HeartbeatClient } from './core/HeartbeatClient.js';
 import { IdentityManager, type IdentityEnricher } from './core/IdentityManager.js';
-import type { ConfigEnvelope, ResolvedIdentity, ScriptMeta } from './core/types.js';
+import type { ResolvedIdentity, ScriptMeta } from './core/types.js';
 import { initGtag, trackGtagEvent } from './utils/analytics.js';
 import { SCROLL_LOCK_CLASS, el, ensureScrollLockStyles, loadFontStylesheet } from './utils/dom.js';
 import { isMobileViewport, shouldShowByDefault } from './utils/visibility.js';
@@ -50,7 +50,9 @@ export interface WidgetSdk {
  *
  * Dropped: the abstract `getConfigType()` / `appendStyles()` / `applyConfig()`
  * contract that forced one subclass and one bundle per widget type. Presentation
- * is now `config.chrome`, a lookup.
+ * is now `config.chrome`, a lookup. Nothing in this file names a chrome: the
+ * styles here are the ones every presentation shares, and a strategy overrides
+ * them from `chrome/`.
  */
 export class WidgetHost {
   readonly widgetId: string;
@@ -272,7 +274,6 @@ export class WidgetHost {
   }
 
   private resolveAlign(config: WidgetConfig): 'left' | 'right' | 'center' {
-    if (config.chrome === 'modal') return 'center';
     const side: PlacementSide | undefined = isMobileViewport()
       ? config.placement?.mobile
       : config.placement?.desktop;
@@ -320,24 +321,10 @@ export class WidgetHost {
         transform: translateX(-50%);
       }
 
-      /* A modal owns the viewport so it can paint a backdrop, so it must not
-         swallow clicks while closed. */
-      :host([data-chrome="modal"]) {
-        inset: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        transform: none;
-        align-items: center;
-        justify-content: center;
-        pointer-events: none;
-      }
-
       @media only screen and (max-width: 732px) {
         :host([data-align="right"]) { right: ${m.side}px; bottom: ${m.bottom}px; }
         :host([data-align="left"]) { left: ${m.side}px; bottom: ${m.bottom}px; }
         :host([data-align="center"]) { bottom: ${m.bottom}px; }
-        :host([data-chrome="modal"]) { inset: 0; }
       }
     `);
   }

@@ -51,8 +51,17 @@ are idempotent, so a restart is safe and a rolling deploy does not need a separa
 | `IDENTITY_BASE_URL`    | no       | `PUBLIC_BASE_URL`        | Point identity at a separate service serving the same `/v1/sessions` contract                           |
 
 Template `src` values are read from the environment when seeding, so a deploy can point widgets at its
-own widget hosts without editing code: `HELLO_WIDGET_URL`, `SUPPORT_CLIENT_URL`, `POPUP_CLIENT_URL`,
-`REWARDS_CLIENT_URL`.
+own hosts without editing code.
+
+| Variable                                                                                   | Default                   | Points at                           |
+| ------------------------------------------------------------------------------------------ | ------------------------- | ----------------------------------- |
+| `VIEWS_BASE_URL`                                                                           | `http://localhost:5175`   | The bundled views app, `apps/views` |
+| `SUPPORT_CLIENT_URL` / `POPUP_CLIENT_URL` / `REWARDS_CLIENT_URL` / `NEWSLETTER_CLIENT_URL` | the matching views module | Override one template at a time     |
+| `HELLO_WIDGET_URL`                                                                         | `http://localhost:5174`   | `examples/hello-widget`             |
+
+`apps/views` builds to static files (`pnpm --filter @web-plugins/views build`), so in production it is
+served by any static host or CDN and `VIEWS_BASE_URL` is that origin. The server does not serve it: a
+widget UI is a separate origin on purpose, which is what makes the iframe boundary worth anything.
 
 Getting `PUBLIC_BASE_URL` wrong is the one misconfiguration with non-obvious symptoms: install snippets
 point at the wrong host, and the panel's own mutations get `403` because its `Origin` no longer matches
@@ -86,15 +95,15 @@ pnpm db:migrate      # or just restart the server
 
 ### The tables
 
-| Table             | Holds                                                                                 |
-| ----------------- | ------------------------------------------------------------------------------------- |
-| `project`         | One row for a self-host install, and the `projectId` every other table carries        |
-| `widget_template` | The starter kinds: name, chrome, src, schema parts, defaults                          |
+| Table             | Holds                                                                                              |
+| ----------------- | -------------------------------------------------------------------------------------------------- |
+| `project`         | One row for a self-host install, and the `projectId` every other table carries                     |
+| `widget_template` | The starter kinds: name, chrome, src, schema parts, defaults                                       |
 | `widget`          | The public short id from the script URL, its `status`, and a **snapshot** of its template's schema |
-| `widget_config`   | One row per widget: the one `values` document and its `version`                        |
-| `widget_health`   | Last heartbeat per widget, one row, upserted                                          |
-| `visitor_session` | One row per visitor: traits from `identify`, plus IP, user agent and a restore id     |
-| `visitor_event`   | Events widgets report against a session. Write-only so far; nothing reads them yet    |
+| `widget_config`   | One row per widget: the one `values` document and its `version`                                    |
+| `widget_health`   | Last heartbeat per widget, one row, upserted                                                       |
+| `visitor_session` | One row per visitor: traits from `identify`, plus IP, user agent and a restore id                  |
+| `visitor_event`   | Events widgets report against a session. Write-only so far; nothing reads them yet                 |
 
 One property worth relying on: `widget.schema` is a snapshot, so editing a template never
 invalidates a live widget's config.

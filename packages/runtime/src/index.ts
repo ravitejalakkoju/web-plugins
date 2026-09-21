@@ -95,5 +95,6 @@ export { WidgetFrame } from './WidgetFrame.js';
 export { registerChrome, getChrome } from './chrome/index.js';
 export type { ChromeContext, ChromeFactory, ChromeInstance, HostState } from './chrome/types.js';
 export type { IdentityEnricher, EnricherContext } from './core/IdentityManager.js';
-export type { ConfigEnvelope, ResolvedIdentity, RuntimeMode, ScriptMeta } from './core/types.js';
+export type { ResolvedIdentity, RuntimeMode, ScriptMeta } from './core/types.js';
+export type { ConfigEnvelope, VersionEnvelope } from '@web-plugins/protocol/config';
 export { getScriptMeta } from './utils/getScriptMeta.js';

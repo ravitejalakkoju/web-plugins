@@ -8,12 +8,13 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "concurrently -k -n runtime,server,widget,page -c cyan,green,magenta,yellow \"pnpm dev:runtime\" \"pnpm dev:server\" \"pnpm dev:widget\" \"pnpm dev:page\"",
+    "dev": "concurrently -k -n runtime,server,views,widget,page -c cyan,green,blue,magenta,yellow \"pnpm dev:runtime\" \"pnpm dev:server\" \"pnpm dev:views\" \"pnpm dev:widget\" \"pnpm dev:page\"",
     "dev:runtime": "pnpm --filter @web-plugins/runtime dev",
     "dev:server": "pnpm --filter @web-plugins/server dev",
+    "dev:views": "pnpm --filter @web-plugins/views dev",
     "dev:widget": "pnpm --filter @web-plugins/hello-widget dev",
     "dev:page": "pnpm --filter @web-plugins/test-page dev",
-    "build": "pnpm --filter @web-plugins/protocol build && pnpm --filter @web-plugins/runtime build && pnpm --filter @web-plugins/widget-kit build && pnpm --filter @web-plugins/hello-widget build && pnpm --filter @web-plugins/server build",
+    "build": "pnpm build:packages && pnpm --filter @web-plugins/views build && pnpm --filter @web-plugins/hello-widget build && pnpm --filter @web-plugins/server build",
     "start": "NODE_ENV=production pnpm --filter @web-plugins/server start",
     "build:packages": "pnpm --filter @web-plugins/protocol build && pnpm --filter @web-plugins/runtime build && pnpm --filter @web-plugins/widget-kit build",
     "db:up": "docker compose up -d postgres",

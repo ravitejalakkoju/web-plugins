@@ -5,6 +5,7 @@ import {
   isEnvelopeFor,
   type IdentifyPayload,
   type RpcEnvelope,
+  type VisitorIdentity,
 } from '@web-plugins/protocol/rpc';
 import type { WidgetConfig } from '@web-plugins/protocol/config';
 import { readWidgetMeta, type WidgetMeta } from './meta.js';
@@ -12,15 +13,6 @@ import { readWidgetMeta, type WidgetMeta } from './meta.js';
 export interface ConfigEvent {
   config: WidgetConfig;
   version: number;
-}
-
-export interface ResolvedIdentity {
-  visitorId?: string;
-  externalId?: string;
-  name?: string;
-  email?: string;
-  phone?: string;
-  meta?: Record<string, unknown>;
 }
 
 export type Unsubscribe = () => void;
@@ -53,7 +45,7 @@ export class WidgetClient {
 
   private config: WidgetConfig | null = null;
   private version = 0;
-  private identity: ResolvedIdentity | null = null;
+  private identity: VisitorIdentity | null = null;
 
   private readonly pending = new Map<string, Pending>();
   private readonly listeners = new Map<string, Set<(payload: unknown) => void>>();
@@ -84,7 +76,7 @@ export class WidgetClient {
     return this.version;
   }
 
-  get currentIdentity(): ResolvedIdentity | null {
+  get currentIdentity(): VisitorIdentity | null {
     return this.identity;
   }
 
@@ -129,7 +121,7 @@ export class WidgetClient {
     }
 
     if (event === HOST_EVENTS.identity) {
-      this.identity = (payload as ResolvedIdentity | null) ?? null;
+      this.identity = (payload as VisitorIdentity | null) ?? null;
     }
 
     for (const listener of this.listeners.get(event) ?? []) {
@@ -190,9 +182,9 @@ export class WidgetClient {
     return this.on(HOST_EVENTS.config, (payload) => listener(payload as ConfigEvent));
   }
 
-  onIdentity(listener: (identity: ResolvedIdentity | null) => void): Unsubscribe {
+  onIdentity(listener: (identity: VisitorIdentity | null) => void): Unsubscribe {
     return this.on(HOST_EVENTS.identity, (payload) =>
-      listener((payload as ResolvedIdentity | null) ?? null),
+      listener((payload as VisitorIdentity | null) ?? null),
     );
   }
 

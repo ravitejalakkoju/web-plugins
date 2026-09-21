@@ -68,7 +68,6 @@ export const HOST_EVENTS = {
   opened: 'opened',
   closed: 'closed',
   identity: 'identity',
-  visibility: 'visibility',
 } as const;
 
 export type HostEvent = (typeof HOST_EVENTS)[keyof typeof HOST_EVENTS];
@@ -84,6 +83,24 @@ export interface TrackPayload {
 }
 
 export interface IdentifyPayload {
+  externalId?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  meta?: Record<string, unknown>;
+}
+
+/**
+ * Payload of the `identity` event: who the host believes the visitor is.
+ *
+ * Deliberately without the session token. The token is a bearer credential for
+ * `/v1/sessions`, and `src` can point at anything the operator types, so the
+ * frame gets an id it can correlate on and nothing it can act with.
+ */
+export interface VisitorIdentity {
+  /** The visitor session this identity belongs to. */
+  visitorId?: string;
   externalId?: string;
   name?: string;
   email?: string;

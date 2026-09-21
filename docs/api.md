@@ -151,20 +151,20 @@ Two guards run before anything else:
 
 ### Templates and widgets
 
-| Route                     | Returns                                                                                                                                            |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/templates`      | Available templates with their name, description, chrome, and `src` (null when the template has no default)                                        |
-| `GET /api/widgets`        | Every widget in the project with its status and derived health                                                                     |
-| `POST /api/widgets`       | `{ name, templateId }` → `201 { id }`. Created as a draft holding the template defaults                                           |
-| `GET /api/widgets/:id`    | Widget (including `status`), its `values`, `version`, `publishedAt`, and the install snippet                                       |
-| `PATCH /api/widgets/:id`  | `{ name?, status? }` where status is `draft` or `published`. Publishing revalidates and answers `422` on an invalid config         |
-| `DELETE /api/widgets/:id` | Deletes the widget and its config                                                                                                 |
+| Route                     | Returns                                                                                                                    |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/templates`      | Available templates with their name, description, chrome, and `src` (null when the template has no default)                |
+| `GET /api/widgets`        | Every widget in the project with its status and derived health                                                             |
+| `POST /api/widgets`       | `{ name, templateId }` → `201 { id }`. Created as a draft holding the template defaults                                    |
+| `GET /api/widgets/:id`    | Widget (including `status`), its `values`, `version`, `publishedAt`, and the install snippet                               |
+| `PATCH /api/widgets/:id`  | `{ name?, status? }` where status is `draft` or `published`. Publishing revalidates and answers `422` on an invalid config |
+| `DELETE /api/widgets/:id` | Deletes the widget and its config                                                                                          |
 
 ### Config
 
-| Route                         | Behavior                                                                                                                                  |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/widgets/:id/form`   | `{ schema, fields, values }` — the composed JSON Schema _and_ the derived field list, so the panel never hardcodes a form                 |
+| Route                         | Behavior                                                                                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/widgets/:id/form`   | `{ schema, fields, values }` — the composed JSON Schema _and_ the derived field list, so the panel never hardcodes a form                   |
 | `PUT /api/widgets/:id/config` | `{ values }`. Validates, overwrites the document and bumps `version`. `422` with per-field details on invalid input → `{ values, version }` |
 
 A widget has exactly one config document, and `status` decides whether visitors get
@@ -231,12 +231,12 @@ is not a broken install.
 
 ### Preview tokens
 
-`POST /api/widgets/:id/preview-token` returns `{ token, expiresAt }` — a short-lived HMAC over the
-widget id. It exists so the editor can render an unpublished draft without a public draft endpoint.
+A preview token is a short-lived HMAC over a widget id, and the only way to read a draft config:
+`/v1/config?previewToken=…` accepts one, and there is no public draft endpoint.
 
-The panel's preview iframe does not use a token from the page; `/admin/preview/:id` is itself an
-authenticated route that mints its own and sends `Content-Security-Policy: frame-ancestors 'self'`, so
-a token cannot be lifted out of the editor's HTML.
+There is no endpoint that hands one out. `/admin/preview/:id` is an authenticated page that mints its
+own, and sends `Content-Security-Policy: frame-ancestors 'self'`, so a token never appears in the
+editor's HTML for something else to lift.
 
 ## Errors
 

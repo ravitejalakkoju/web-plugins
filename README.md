@@ -41,9 +41,9 @@ pnpm build:packages   # protocol + runtime + widget-kit, needed once before the 
 pnpm dev
 ```
 
-`pnpm dev` starts four things: the runtime bundler in watch mode, the server with the admin panel on
-[localhost:5055](http://localhost:5055), the example widget on `:5174`, and a plain test page on
-`:5173`.
+`pnpm dev` starts five things: the runtime bundler in watch mode, the server with the admin panel on
+[localhost:5055](http://localhost:5055), the bundled widget views on `:5175`, the example widget on
+`:5174`, and a plain test page on `:5173`.
 
 Then:
 
@@ -92,9 +92,16 @@ web-plugins/
   packages/protocol/        MIT: config schema, validators, RPC + heartbeat types, form generation
   packages/runtime/         MIT: the browser bundle served as /v1/widget.js
   packages/widget-kit/      MIT: the iframe-side client for widget authors
+  apps/views/               MIT: the bundled widget UIs, one Preact app, one folder per module
   examples/hello-widget/    a complete widget in one Preact component
   examples/test-page/       a plain host page, no framework, for verifying installs
 ```
+
+A widget's UI is whatever `config.src` points at, so [`apps/views`](apps/views/README.md) is a
+convenience rather than a requirement: it holds the common modules (chat, rewards, popup,
+newsletter) so they share a build and a skin, and `pnpm --filter @web-plugins/views new <name>` adds
+another. Anything on any stack can take its place by pointing `src` elsewhere and speaking the same
+RPC contract.
 
 ## Docs
 
@@ -107,28 +114,30 @@ web-plugins/
 
 ## Scripts
 
-| Command                                        | What it does                                              |
-| ---------------------------------------------- | --------------------------------------------------------- |
-| `pnpm dev`                                     | runtime watcher + server + example widget + test page     |
-| `pnpm build`                                   | build every package, then the server and its admin assets |
-| `pnpm start`                                   | run the built server in production mode                   |
-| `pnpm build:packages`                          | just `protocol`, `runtime`, `widget-kit`                  |
-| `pnpm db:up` / `pnpm db:down`                  | the `docker-compose` Postgres                             |
-| `pnpm db:generate`                             | generate a migration after editing the Drizzle schema     |
-| `pnpm db:migrate` / `pnpm db:seed`             | run migrations / reseed templates                         |
-| `pnpm typecheck` / `pnpm lint` / `pnpm format` | tsc, eslint, prettier                                     |
+| Command                                        | What it does                                                             |
+| ---------------------------------------------- | ------------------------------------------------------------------------ |
+| `pnpm dev`                                     | runtime watcher + server + views + example widget + test page            |
+| `pnpm build`                                   | build every package, then the views app, the server and its admin assets |
+| `pnpm start`                                   | run the built server in production mode                                  |
+| `pnpm build:packages`                          | just `protocol`, `runtime`, `widget-kit`                                 |
+| `pnpm db:up` / `pnpm db:down`                  | the `docker-compose` Postgres                                            |
+| `pnpm db:generate`                             | generate a migration after editing the Drizzle schema                    |
+| `pnpm db:migrate` / `pnpm db:seed`             | run migrations / reseed templates                                        |
+| `pnpm typecheck` / `pnpm lint` / `pnpm format` | tsc, eslint, prettier                                                    |
 
 ## Licensing
 
 Open core, licensed per package rather than per repo:
 
-- **MIT** — `protocol`, `runtime`, `widget-kit`, and the examples. Everything that reaches a
-  visitor's browser, plus the shared contracts. Ship it in a commercial product, no obligation.
+- **MIT** — `protocol`, `runtime`, `widget-kit`, `apps/views`, and the examples. Everything that
+  reaches a visitor's browser, plus the shared contracts. Ship it in a commercial product, no
+  obligation.
 - **AGPL-3.0-only** — `apps/server`, the control plane. Self-host it freely; if you run a modified
   version as a network service, AGPL section 13 asks you to offer that source to its users. A
   commercial license without that condition is available from the copyright holder.
 
-See [LICENSE](LICENSE) for the full breakdown.
+See [LICENSE](LICENSE) for the full breakdown, and [CONTRIBUTING](CONTRIBUTING.md) for how to work on
+the repo.
 
 ## Not in v1
 

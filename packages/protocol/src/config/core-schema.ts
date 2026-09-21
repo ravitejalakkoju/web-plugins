@@ -8,7 +8,13 @@ import { CHROME_MODES, PAGE_RULE_OPERATORS } from './types.js';
 
 export type JsonSchema = Record<string, any>;
 
-const hexCodePattern = '^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$';
+/**
+ * Shared so a colour field stays a colour field: the form generator recognises a
+ * picker by comparing against this exact string, so a second copy that drifts
+ * would quietly downgrade the control to a text input.
+ */
+export const HEX_COLOR_PATTERN = '^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$';
+
 const svgPattern = '^\\s*<svg[\\s\\S]*</svg>\\s*$';
 const noScriptPattern = '^(?!.*<script)[\\s\\S]*$';
 
@@ -54,10 +60,10 @@ export const visibilitySchema: JsonSchema = {
 export const colorsSchema: JsonSchema = {
   type: 'object',
   properties: {
-    primaryColor: { type: 'string', pattern: hexCodePattern },
-    primaryTextColor: { type: 'string', pattern: hexCodePattern, nullable: true },
-    secondaryTextColor: { type: 'string', pattern: hexCodePattern, nullable: true },
-    primaryBackgroundColor: { type: 'string', pattern: hexCodePattern, nullable: true },
+    primaryColor: { type: 'string', pattern: HEX_COLOR_PATTERN },
+    primaryTextColor: { type: 'string', pattern: HEX_COLOR_PATTERN, nullable: true },
+    secondaryTextColor: { type: 'string', pattern: HEX_COLOR_PATTERN, nullable: true },
+    primaryBackgroundColor: { type: 'string', pattern: HEX_COLOR_PATTERN, nullable: true },
   },
   required: ['primaryColor'],
   additionalProperties: false,

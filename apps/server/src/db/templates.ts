@@ -1,4 +1,4 @@
-import type { JsonSchema, WidgetSchemaParts } from '@web-plugins/protocol';
+import { HEX_COLOR_PATTERN, type JsonSchema, type WidgetSchemaParts } from '@web-plugins/protocol';
 
 /**
  * Seed templates.
@@ -20,6 +20,15 @@ export interface TemplateSeed {
 }
 
 const E164 = '^\\+[1-9]\\d{1,14}$';
+
+/**
+ * Where the bundled views app is served from. Each template below defaults to its
+ * module there, and keeps a per-template env override for operators who run their
+ * own client instead.
+ */
+const VIEWS_BASE_URL = (process.env.VIEWS_BASE_URL ?? 'http://localhost:5175').replace(/\/+$/, '');
+
+const viewUrl = (module: string): string => `${VIEWS_BASE_URL}/${module}/`;
 
 const visibility = {
   device: { desktop: true, mobile: true },
@@ -107,7 +116,7 @@ const supportChat: TemplateSeed = {
   description:
     'Launcher plus a side panel iframe. Point src at your chat client; the config below is passed through to it.',
   chrome: 'panel',
-  src: process.env.SUPPORT_CLIENT_URL ?? null,
+  src: process.env.SUPPORT_CLIENT_URL ?? viewUrl('chat'),
   schema: {
     launcher: {
       type: 'object',
@@ -154,7 +163,7 @@ const supportChat: TemplateSeed = {
   },
   defaults: {
     chrome: 'panel',
-    src: process.env.SUPPORT_CLIENT_URL ?? null,
+    src: process.env.SUPPORT_CLIENT_URL ?? viewUrl('chat'),
     visibility,
     colors: { primaryColor: '#008080', primaryTextColor: '#FFFFFF' },
     placement: placement('right'),
@@ -190,7 +199,7 @@ const emailPopup: TemplateSeed = {
   description:
     'Centered dialog that opens on a timer and hands a coupon back. Point src at your popup client.',
   chrome: 'modal',
-  src: process.env.POPUP_CLIENT_URL ?? null,
+  src: process.env.POPUP_CLIENT_URL ?? viewUrl('popup'),
   schema: {
     view: {
       type: 'object',
@@ -213,9 +222,9 @@ const emailPopup: TemplateSeed = {
             submitBtn: {
               type: 'object',
               properties: {
-                color: { type: 'string', pattern: '^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$' },
+                color: { type: 'string', pattern: HEX_COLOR_PATTERN },
                 text: { type: 'string', minLength: 1, maxLength: 40 },
-                textColor: { type: 'string', pattern: '^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$' },
+                textColor: { type: 'string', pattern: HEX_COLOR_PATTERN },
               },
               required: ['color', 'text', 'textColor'],
               additionalProperties: false,
@@ -243,9 +252,9 @@ const emailPopup: TemplateSeed = {
             copyCodeBtn: {
               type: 'object',
               properties: {
-                color: { type: 'string', pattern: '^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$' },
+                color: { type: 'string', pattern: HEX_COLOR_PATTERN },
                 text: { type: 'string', minLength: 1, maxLength: 40 },
-                textColor: { type: 'string', pattern: '^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$' },
+                textColor: { type: 'string', pattern: HEX_COLOR_PATTERN },
               },
               required: ['color', 'textColor'],
               additionalProperties: false,
@@ -261,7 +270,7 @@ const emailPopup: TemplateSeed = {
   },
   defaults: {
     chrome: 'modal',
-    src: process.env.POPUP_CLIENT_URL ?? null,
+    src: process.env.POPUP_CLIENT_URL ?? viewUrl('popup'),
     visibility,
     colors: { primaryColor: '#111111', primaryTextColor: '#FFFFFF' },
     placement: placement('center'),
@@ -293,7 +302,7 @@ const rewards: TemplateSeed = {
   description:
     'Loyalty panel with referral and redemption toggles. Point src at your rewards client.',
   chrome: 'panel',
-  src: process.env.REWARDS_CLIENT_URL ?? null,
+  src: process.env.REWARDS_CLIENT_URL ?? viewUrl('rewards'),
   schema: {
     launcher: {
       type: 'object',
@@ -330,7 +339,7 @@ const rewards: TemplateSeed = {
   },
   defaults: {
     chrome: 'panel',
-    src: process.env.REWARDS_CLIENT_URL ?? null,
+    src: process.env.REWARDS_CLIENT_URL ?? viewUrl('rewards'),
     visibility,
     colors: { primaryColor: '#6D28D9', primaryTextColor: '#FFFFFF' },
     placement: placement('left'),
@@ -345,6 +354,55 @@ const rewards: TemplateSeed = {
       redeemEnabled: true,
       earnEnabled: true,
       faq: [],
+    },
+  },
+};
+
+const newsletter: TemplateSeed = {
+  id: 'newsletter',
+  name: 'Newsletter signup',
+  description:
+    'Slim panel that collects an email with a consent line. The signup lands on the visitor session, so your list tool can read it from there.',
+  chrome: 'panel',
+  src: process.env.NEWSLETTER_CLIENT_URL ?? viewUrl('newsletter'),
+  schema: {
+    view: {
+      type: 'object',
+      properties: {
+        headline: { type: 'string', minLength: 1, maxLength: 80 },
+        message: { type: 'string', maxLength: 400 },
+        collectName: { type: 'boolean' },
+        consentText: { type: 'string', maxLength: 400, nullable: true },
+        submitLabel: { type: 'string', minLength: 1, maxLength: 40 },
+        successTitle: { type: 'string', minLength: 1, maxLength: 80 },
+        successMessage: { type: 'string', maxLength: 400 },
+        tags: { type: 'array', items: { type: 'string', maxLength: 40 } },
+      },
+      required: ['headline', 'submitLabel'],
+      additionalProperties: false,
+    },
+  },
+  defaults: {
+    chrome: 'panel',
+    src: process.env.NEWSLETTER_CLIENT_URL ?? viewUrl('newsletter'),
+    visibility,
+    colors: { primaryColor: '#111827', primaryTextColor: '#FFFFFF' },
+    placement: placement('right'),
+    frame: { height: 420, width: 360, position: 'absolute' },
+    launcher: {
+      tooltip: 'Newsletter',
+      autoOpen: false,
+      timer: 0,
+    },
+    view: {
+      headline: 'Get the newsletter',
+      message: 'One email a month. Product news, nothing else.',
+      collectName: false,
+      consentText: 'I agree to receive emails and can unsubscribe at any time.',
+      submitLabel: 'Subscribe',
+      successTitle: 'You are in',
+      successMessage: 'Look out for the next one.',
+      tags: [],
     },
   },
 };
@@ -401,4 +459,5 @@ export const templateSeeds: TemplateSeed[] = [
   supportChat,
   emailPopup,
   rewards,
+  newsletter,
 ];

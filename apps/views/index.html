@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Web Plugins views</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 40px 24px;
+        font:
+          14px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        color: #16181d;
+        background: #f6f7f9;
+      }
+      main {
+        max-width: 34rem;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 4px;
+      }
+      p {
+        color: #646b7a;
+        margin: 0 0 20px;
+      }
+      ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 8px;
+      }
+      a {
+        display: block;
+        padding: 12px 14px;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        background: #fff;
+        color: inherit;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      a:hover {
+        border-color: #16181d;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        color: #646b7a;
+        font-weight: 400;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Widget views</h1>
+      <p>
+        Each module is an iframe a launcher opens. Opened directly they have no host to talk to, so
+        they will say they are not connected — that is the point of the boundary. Use the admin
+        panel's preview to see one with config.
+      </p>
+      <ul>
+        <li>
+          <a href="/chat/">Chat <code>support-chat</code></a>
+        </li>
+        <li>
+          <a href="/rewards/">Rewards <code>rewards</code></a>
+        </li>
+        <li>
+          <a href="/popup/">Popup <code>email-popup</code></a>
+        </li>
+        <li>
+          <a href="/newsletter/">Newsletter <code>newsletter</code></a>
+        </li>
+      </ul>
+    </main>
+  </body>
+</html>

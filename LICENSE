@@ -4,6 +4,7 @@ MIT
   packages/protocol      @web-plugins/protocol    see packages/protocol/LICENSE
   packages/runtime       @web-plugins/runtime     see packages/runtime/LICENSE
   packages/widget-kit    @web-plugins/widget-kit  see packages/widget-kit/LICENSE
+  apps/views             @web-plugins/views       see apps/views/LICENSE
   examples/hello-widget                           see examples/hello-widget/LICENSE
 
   Everything that ships to a visitor's browser, plus the shared config and RPC

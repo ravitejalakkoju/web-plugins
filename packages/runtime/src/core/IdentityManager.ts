@@ -207,6 +207,9 @@ export class IdentityManager {
     const fields = identity.fields ?? {};
     return {
       token: identity.token,
+      // `sub` is the visitor_session id. A frame gets this instead of the token,
+      // so it can correlate its own records with a visitor.
+      visitorId: this.decodeToken(identity.token).sub as string | undefined,
       externalId: fields.externalId?.value,
       name: fields.name?.value ?? 'Anonymous User',
       email: fields.email?.value,

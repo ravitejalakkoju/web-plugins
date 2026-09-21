@@ -3,6 +3,31 @@
   "version": "0.1.0",
   "description": "The Web Plugins browser runtime: one script that mounts any configured widget",
   "license": "MIT",
+  "author": "Ravi Teja L",
+  "homepage": "https://github.com/ravitejalakkoju/web-plugins/tree/main/packages/runtime#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ravitejalakkoju/web-plugins.git",
+    "directory": "packages/runtime"
+  },
+  "bugs": {
+    "url": "https://github.com/ravitejalakkoju/web-plugins/issues"
+  },
+  "keywords": [
+    "widget",
+    "embed",
+    "shadow-dom",
+    "iframe",
+    "runtime"
+  ],
+  "//": "widget.js mounts on load, so a bundler must not drop an import of it.",
+  "sideEffects": [
+    "./dist/widget.js"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "type": "module",
   "main": "./dist/runtime.js",
   "types": "./dist/runtime.d.ts",
@@ -21,11 +46,12 @@
   ],
   "scripts": {
     "build": "tsup",
+    "prepublishOnly": "pnpm run build",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@web-plugins/protocol": "workspace:*"
+    "@web-plugins/protocol": "workspace:^"
   },
   "devDependencies": {
     "tsup": "^8.5.1",

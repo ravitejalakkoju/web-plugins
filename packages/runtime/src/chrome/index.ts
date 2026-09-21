@@ -17,7 +17,17 @@ const registry = new Map<string, ChromeFactory>([
 ]);
 
 export function getChrome(mode: ChromeMode | string | undefined): ChromeFactory {
-  return registry.get(String(mode)) ?? fabChrome;
+  // Absent is the documented default, so only a name that was actually asked for
+  // and not found is worth a warning.
+  if (!mode) return fabChrome;
+
+  const factory = registry.get(String(mode));
+  if (factory) return factory;
+
+  console.warn(
+    `[web-plugins] unknown chrome "${mode}", falling back to "fab". Registered: ${[...registry.keys()].join(', ')}. Call registerChrome() before mounting to add your own.`,
+  );
+  return fabChrome;
 }
 
 /** Register a custom chrome before the host initialises. */

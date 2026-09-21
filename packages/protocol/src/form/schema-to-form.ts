@@ -1,4 +1,4 @@
-import type { JsonSchema } from '../config/core-schema.js';
+import { HEX_COLOR_PATTERN, type JsonSchema } from '../config/core-schema.js';
 import type { FormField, FormFieldType, FormValidator } from './types.js';
 
 /**
@@ -10,8 +10,6 @@ import type { FormField, FormFieldType, FormValidator } from './types.js';
  * fields get specific control types.
  */
 
-const HEX_COLOR_HINT = '^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$';
-
 function getFieldType(prop: JsonSchema): FormFieldType {
   if (prop.enum) return 'select';
   if (prop.type === 'boolean') return 'checkbox';
@@ -21,7 +19,7 @@ function getFieldType(prop: JsonSchema): FormFieldType {
   if (prop.type === 'string') {
     if (prop.format === 'email') return 'email';
     if (prop.format === 'uri' || prop.format === 'uri-reference') return 'url';
-    if (prop.pattern === HEX_COLOR_HINT) return 'color';
+    if (prop.pattern === HEX_COLOR_PATTERN) return 'color';
     if (typeof prop.maxLength === 'number' && prop.maxLength > 240) return 'textarea';
   }
   return 'text';

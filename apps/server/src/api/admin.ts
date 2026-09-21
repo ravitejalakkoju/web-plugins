@@ -2,7 +2,6 @@ import type { FastifyPluginAsync } from 'fastify';
 import { templateSummary, widgetDetail, widgetSummary } from '../admin/presenters.js';
 import { DEFAULT_PROJECT_ID } from '../db/seed.js';
 import { notFound } from '../lib/errors.js';
-import { createPreviewToken } from '../lib/tokens.js';
 import { WIDGET_STATUS, type WidgetStatus } from '../db/schema.js';
 import { configValues } from '../services/widget.service.js';
 import { requireAuth } from './auth.js';
@@ -147,13 +146,5 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const snapshot = await app.services.health.getSnapshot(request.params.id);
     if (!snapshot) throw notFound(`widget "${request.params.id}" does not exist`);
     return snapshot;
-  });
-
-  app.post<{ Params: { id: string } }>('/api/widgets/:id/preview-token', async (request) => {
-    const found = await app.services.widgets.getWidget(request.params.id);
-    if (!found) throw notFound(`widget "${request.params.id}" does not exist`);
-
-    const token = createPreviewToken(app.env.previewTokenSecret, found.widget.id);
-    return { token: token.token, expiresAt: token.expiresAt.toISOString() };
   });
 };

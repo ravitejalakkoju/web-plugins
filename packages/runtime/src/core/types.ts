@@ -1,4 +1,4 @@
-import type { WidgetConfig } from '@web-plugins/protocol/config';
+import type { VisitorIdentity } from '@web-plugins/protocol/rpc';
 
 export type RuntimeMode = 'auto' | 'manual' | 'preview';
 
@@ -12,32 +12,17 @@ export interface ScriptMeta {
   previewToken: string | null;
 }
 
-/** Server-supplied settings that are not part of the widget's own config. */
-export interface RuntimeOptions {
-  /** Base URL of a session/identity service. Absent disables visitor identity. */
-  identityBaseUrl?: string | null;
-  protocol?: number;
-}
-
-/** Response shape of `GET /v1/config`. */
-export interface ConfigEnvelope {
-  widgetId: string;
-  version: number;
-  config: WidgetConfig;
-  runtime?: RuntimeOptions;
-}
-
-export interface VersionEnvelope {
-  widgetId: string;
-  version: number;
-}
-
-export interface ResolvedIdentity {
+/**
+ * The frame-facing identity plus the bearer token, which stays on the host side:
+ * see `visitorIdentity` for what actually crosses into an iframe.
+ */
+export interface ResolvedIdentity extends VisitorIdentity {
   token: string;
-  externalId?: string;
-  name?: string;
-  email?: string;
-  phone?: string;
-  company?: string;
-  meta?: Record<string, unknown>;
+}
+
+/** Strip the session token, leaving what a widget is allowed to see. */
+export function visitorIdentity(identity: ResolvedIdentity | null): VisitorIdentity | null {
+  if (!identity) return null;
+  const { token: _token, ...visible } = identity;
+  return visible;
 }

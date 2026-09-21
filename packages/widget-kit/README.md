@@ -57,8 +57,8 @@ await client.clearIdentity();
 await client.openUrl('https://example.com/pricing'); // navigates the top window
 
 client.onConfig((event) => {});
-client.onIdentity((identity) => {});
-client.on('opened' | 'closed' | 'visibility', (payload) => {});
+client.onIdentity((identity) => {}); // a VisitorIdentity, or null
+client.on('opened' | 'closed', (payload) => {});
 ```
 
 `getWidgetClient()` returns the same instance every time, so several components can use it without
@@ -71,6 +71,8 @@ Notes that save debugging time:
 - **Identity and analytics degrade quietly.** `identify` resolves to `null` when the server has
   identity turned off with `IDENTITY_ENABLED=false`, which is the only way to get there since it is on
   by default. `track` is suppressed entirely in preview mode.
+- **You get a `visitorId`, not a session token.** The token is a bearer credential for `/v1/sessions`
+  and stays on the host side, so correlate on the id and ask the host to act on your behalf.
 - **Messages are origin-pinned both ways.** The client only accepts messages from the host origin its
   URL declared, and only posts back to that origin.
 - **`isEmbedded` is false when opened directly in a tab,** and `connect()` rejects. Render a hint for

@@ -31,10 +31,14 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return payload as T;
 }
 
+/**
+ * Only what the panel actually calls. Signing out is a form POST so the browser
+ * follows the redirect, and the preview pane is server-rendered with its own
+ * token, so neither has a counterpart here.
+ */
 export const api = {
   login: (email: string, password: string) =>
     request<{ ok: true }>('POST', '/api/auth/login', { email, password }),
-  logout: () => request<{ ok: true }>('POST', '/api/auth/logout'),
   createWidget: (name: string, templateId: string) =>
     request<{ id: string }>('POST', '/api/widgets', { name, templateId }),
   renameWidget: (id: string, name: string) =>
@@ -53,8 +57,7 @@ export const api = {
       `/api/widgets/${id}`,
       { status },
     ),
+  /** The health page polls this on the same cadence as the runtime's heartbeat. */
   health: (id: string) =>
     request<import('@web-plugins/protocol').HealthSnapshot>('GET', `/api/widgets/${id}/health`),
-  previewToken: (id: string) =>
-    request<{ token: string; expiresAt: string }>('POST', `/api/widgets/${id}/preview-token`),
 };

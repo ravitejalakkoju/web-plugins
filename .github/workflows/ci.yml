@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch makes the first run's answer irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Format
+        run: pnpm prettier --check .
+
+      - run: pnpm lint
+
+      # Before typecheck: the server and the examples resolve the packages through
+      # their built `dist`, so a source-only change would typecheck against stale
+      # declarations, or none at all on a clean checkout.
+      - name: Build packages
+        run: pnpm build:packages
+
+      - run: pnpm typecheck
+
+      # The full build covers what the package build does not: the admin bundle,
+      # the views app, and the server's own output.
+      - name: Build
+        run: pnpm build
+
+      - name: Migrations apply to an empty database
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: pglite:memory
+          SESSION_SECRET: ci-session-secret-0000
+          PREVIEW_TOKEN_SECRET: ci-preview-secret-0000
+          VISITOR_TOKEN_SECRET: ci-visitor-secret-0000
+          ADMIN_EMAIL: ci@example.com
+          ADMIN_PASSWORD: ci-password

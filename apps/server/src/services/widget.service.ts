@@ -111,23 +111,28 @@ export class WidgetService {
     const widgetId = shortId(12);
     const defaults = template.defaults as ConfigValues;
 
-    await this.db.insert(widget).values({
-      id: widgetId,
-      projectId: input.projectId,
-      name: input.name,
-      templateId: template.id,
-      schema: template.schema,
-      status: WIDGET_STATUS.draft,
-    });
+    // One transaction, because a widget without its config row is not a widget:
+    // it would list with an empty config and refuse to publish, with nothing in
+    // the panel explaining why.
+    await this.db.transaction(async (tx) => {
+      await tx.insert(widget).values({
+        id: widgetId,
+        projectId: input.projectId,
+        name: input.name,
+        templateId: template.id,
+        schema: template.schema,
+        status: WIDGET_STATUS.draft,
+      });
 
-    await this.db.insert(widgetConfig).values({
-      widgetId,
-      projectId: input.projectId,
-      values: {
-        ...defaults,
-        chrome: defaults.chrome ?? template.chrome,
-        src: defaults.src ?? template.src,
-      },
+      await tx.insert(widgetConfig).values({
+        widgetId,
+        projectId: input.projectId,
+        values: {
+          ...defaults,
+          chrome: defaults.chrome ?? template.chrome,
+          src: defaults.src ?? template.src,
+        },
+      });
     });
 
     const created = await this.getWidget(widgetId);
@@ -136,10 +141,15 @@ export class WidgetService {
   }
 
   async renameWidget(widgetId: string, name: string): Promise<void> {
-    await this.db
+    // `returning` is how a single statement reports that it matched nothing, which
+    // is otherwise indistinguishable from a successful rename.
+    const [renamed] = await this.db
       .update(widget)
       .set({ name, updatedAt: new Date() })
-      .where(eq(widget.id, widgetId));
+      .where(eq(widget.id, widgetId))
+      .returning({ id: widget.id });
+
+    if (!renamed) throw notFound(`widget "${widgetId}" does not exist`);
   }
 
   /**
@@ -172,7 +182,12 @@ export class WidgetService {
   }
 
   async deleteWidget(widgetId: string): Promise<void> {
-    await this.db.delete(widget).where(eq(widget.id, widgetId));
+    const [deleted] = await this.db
+      .delete(widget)
+      .where(eq(widget.id, widgetId))
+      .returning({ id: widget.id });
+
+    if (!deleted) throw notFound(`widget "${widgetId}" does not exist`);
   }
 
   validate(row: Pick<Widget, 'schema'>, values: unknown): ConfigValidationError[] {

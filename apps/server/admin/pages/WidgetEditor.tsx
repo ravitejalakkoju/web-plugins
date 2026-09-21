@@ -1,3 +1,4 @@
+import { useState } from 'preact/hooks';
 import { Preview } from '../components/Preview';
 import { SchemaForm } from '../components/SchemaForm';
 import { Alert, CopyField, Shell, StatusBadge } from '../components/ui';
@@ -14,6 +15,7 @@ const SAVE_LABELS: Record<SaveState, string> = {
 
 export function WidgetEditorPage({ data }: { data: EditorPageData }) {
   const editor = useWidgetEditor(data);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const live = editor.status === 'published';
 
   return (
@@ -22,7 +24,22 @@ export function WidgetEditorPage({ data }: { data: EditorPageData }) {
         <a href="/admin/widgets" class="text-sm text-ink-500 hover:text-ink-900">
           ← Widgets
         </a>
-        <h1 class="text-xl font-semibold tracking-tight">{data.widget.name}</h1>
+        <input
+          class="wp-title-input"
+          aria-label="Widget name"
+          defaultValue={editor.name}
+          onBlur={(event) => {
+            // Uncontrolled, so put back whatever the server ended up with: the
+            // trimmed name, or the old one if it was empty or the save failed.
+            const field = event.currentTarget as HTMLInputElement;
+            void editor.saveName(field.value).then((settled) => {
+              field.value = settled;
+            });
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') (event.currentTarget as HTMLInputElement).blur();
+          }}
+        />
         <StatusBadge status={data.health.derivedStatus} />
         <span class="font-mono text-xs text-ink-500">{data.widget.id}</span>
 
@@ -104,6 +121,42 @@ export function WidgetEditorPage({ data }: { data: EditorPageData }) {
                 View health
               </a>
             </div>
+          </div>
+
+          <div class="wp-card space-y-2 p-4">
+            <h2 class="text-sm font-semibold">Delete widget</h2>
+            <p class="text-xs text-ink-500">
+              Removes the config and the health history too. Pages still loading this id will stop
+              getting a widget.
+            </p>
+            {confirmingDelete ? (
+              <div class="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  class="wp-btn-danger"
+                  disabled={editor.busy}
+                  onClick={() => void editor.remove()}
+                >
+                  Delete {editor.name}
+                </button>
+                <button
+                  type="button"
+                  class="wp-btn-ghost"
+                  disabled={editor.busy}
+                  onClick={() => setConfirmingDelete(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                class="wp-btn-ghost text-rose-600"
+                onClick={() => setConfirmingDelete(true)}
+              >
+                Delete
+              </button>
+            )}
           </div>
         </div>
       </div>

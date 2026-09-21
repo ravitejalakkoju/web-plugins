@@ -140,3 +140,27 @@ export interface WidgetConfig {
   /** Template-defined. Passed through to the iframe. */
   meta?: Record<string, unknown>;
 }
+
+/** Server-supplied settings that are not part of the widget's own config. */
+export interface RuntimeOptions {
+  /** Base URL of a session service. Null leaves visitor identity switched off. */
+  identityBaseUrl: string | null;
+  protocol: number;
+}
+
+/**
+ * Response shape of `GET /v1/config`. Lives here rather than in the server and
+ * the runtime separately, because it is the seam between them.
+ */
+export interface ConfigEnvelope {
+  widgetId: string;
+  version: number;
+  config: WidgetConfig;
+  runtime: RuntimeOptions;
+}
+
+/** Response shape of `GET /v1/config/version`, the cache's freshness check. */
+export interface VersionEnvelope {
+  widgetId: string;
+  version: number;
+}

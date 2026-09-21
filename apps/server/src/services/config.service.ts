@@ -1,17 +1,7 @@
-import type { WidgetConfig } from '@web-plugins/protocol';
+import type { ConfigEnvelope, WidgetConfig } from '@web-plugins/protocol';
 import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client.js';
 import { WIDGET_STATUS, widget, widgetConfig } from '../db/schema.js';
-
-export interface ConfigEnvelope {
-  widgetId: string;
-  version: number;
-  config: WidgetConfig;
-  runtime: {
-    identityBaseUrl: string | null;
-    protocol: number;
-  };
-}
 
 /**
  * Read side of the config contract. Serves published widgets only; reading a draft

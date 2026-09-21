@@ -1,0 +1,250 @@
+/*
+ * Shared skin for every module. Colours come in as custom properties that
+ * `mount.tsx` writes from `config.colors`, so a module never reads a hex code.
+ */
+
+:root {
+  --wp-primary: #2563eb;
+  --wp-on-primary: #ffffff;
+  --wp-text: #16181d;
+  --wp-muted: #646b7a;
+  --wp-surface: #ffffff;
+  --wp-border: #e5e7eb;
+  --wp-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  /* The host frame paints its own rounded corners and shadow. */
+  background: transparent;
+}
+
+body {
+  font-family: var(--wp-font);
+  color: var(--wp-text);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  height: 100%;
+}
+
+/* ---- layout ------------------------------------------------------------- */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--wp-surface);
+}
+
+.screen__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--wp-primary);
+  color: var(--wp-on-primary);
+}
+
+.screen__heading {
+  min-width: 0;
+  flex: 1;
+}
+
+.screen__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.screen__subtitle {
+  margin: 2px 0 0;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.screen__close {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.screen__close:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.screen__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.muted {
+  color: var(--wp-muted);
+  font-size: 12px;
+  margin: 0;
+}
+
+.notice {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+  color: var(--wp-muted);
+  background: var(--wp-surface);
+}
+
+/* ---- controls ----------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    filter 0.15s ease,
+    background 0.15s ease;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  background: var(--wp-primary);
+  color: var(--wp-on-primary);
+}
+
+.btn--primary:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.btn--ghost {
+  background: transparent;
+  border-color: var(--wp-border);
+  color: var(--wp-text);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: #f6f7f9;
+}
+
+.field {
+  display: block;
+}
+
+.field__label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wp-muted);
+}
+
+.field__input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--wp-border);
+  border-radius: 10px;
+  font: inherit;
+  color: var(--wp-text);
+  background: #fff;
+  outline: none;
+}
+
+.field__input:focus {
+  border-color: var(--wp-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--wp-primary) 18%, transparent);
+}
+
+/* Only after a real attempt, so an untouched form is not covered in red. */
+.field__input:user-invalid {
+  border-color: #e11d48;
+}
+
+/* ---- config preview ----------------------------------------------------- */
+
+.tree {
+  margin: 0;
+  padding-left: 0;
+  font-size: 12px;
+  list-style-position: inside;
+}
+
+/*
+ * Flex rather than a grid: a panel is ~380px wide and nesting runs deep, so a
+ * fixed key column compounds at every level until the values are off-screen. Here
+ * a scalar sits beside its key and anything bigger wraps onto its own line.
+ */
+.tree__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  padding: 4px 0;
+  border-top: 1px solid var(--wp-border);
+}
+
+.tree__row:first-child {
+  border-top: none;
+}
+
+.tree dt {
+  flex: none;
+  max-width: 100%;
+  color: var(--wp-muted);
+  overflow-wrap: anywhere;
+}
+
+.tree dd {
+  /* Grows to the rest of the line, or takes a line of its own when cramped. */
+  flex: 1 1 7rem;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tree .tree {
+  padding-left: 8px;
+  border-left: 1px solid var(--wp-border);
+}
+
+.scalar {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}

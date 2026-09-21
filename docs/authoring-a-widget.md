@@ -11,10 +11,24 @@ runtime, the API, or the admin panel.
 Any stack that renders HTML works. The only requirement is `@web-plugins/widget-kit`, which owns the
 conversation with the host.
 
+There are two reasonable places to put it. If the widget belongs with the platform, add a module to
+the bundled views app and get the build, the skin and the connection handling for free:
+
+```bash
+pnpm --filter @web-plugins/views new my-widget
+# writes apps/views/my-widget/, served at http://localhost:5175/my-widget/
+```
+
+If it is big enough to deserve its own project, or is not Preact, start from scratch and only depend
+on the kit:
+
 ```bash
 mkdir -p examples/my-widget && cd examples/my-widget
 # package.json, vite.config.ts, index.html — copy examples/hello-widget to start
 ```
+
+Either way the rest of this doc is the same: the host cannot tell the difference, because `src` is
+just a URL.
 
 With Preact, a whole widget is one hook:
 
@@ -72,8 +86,8 @@ await client.clearIdentity();
 await client.openUrl('https://example.com/pricing'); // navigates the top window
 
 client.onConfig((event) => {}); // config was pushed
-client.onIdentity((identity) => {});
-client.on('opened' | 'closed' | 'visibility', (payload) => {});
+client.onIdentity((identity) => {}); // a VisitorIdentity, or null
+client.on('opened' | 'closed', (payload) => {});
 ```
 
 Three things worth knowing:

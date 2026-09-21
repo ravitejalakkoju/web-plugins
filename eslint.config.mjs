@@ -29,7 +29,21 @@ export default tseslint.config(
     },
   },
   {
+    files: ['apps/views/**/*.ts', 'apps/views/**/*.tsx', 'examples/**/*.tsx'],
+    languageOptions: {
+      globals: globals.browser,
+    },
+  },
+  {
     files: ['apps/server/**/*.ts'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  // Build configs and scripts run in node, wherever they live. Last, so it wins
+  // over the browser globals a package otherwise gets.
+  {
+    files: ['**/*.mjs', '**/*.config.ts', '**/scripts/**'],
     languageOptions: {
       globals: globals.node,
     },

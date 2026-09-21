@@ -1,5 +1,14 @@
+import type { WidgetConfig } from '@web-plugins/protocol/config';
 import { WidgetFrame, type FrameVariant } from '../WidgetFrame.js';
 import type { ChromeContext } from './types.js';
+
+/**
+ * Frame dimensions with their defaults applied, shared so the panel and the modal
+ * cannot disagree about how big an unconfigured frame is.
+ */
+export function frameSize(config: WidgetConfig): { height: number; width: number } {
+  return { height: config.frame?.height ?? 600, width: config.frame?.width ?? 384 };
+}
 
 /**
  * Mount the iframe for a chrome strategy, or return null when the widget has no
@@ -25,7 +34,6 @@ export function mountFrame(
       version: context.version,
       previewToken: context.previewToken,
       variant,
-      frame: config.frame,
     },
     context.stylesheet,
   );

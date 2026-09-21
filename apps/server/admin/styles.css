@@ -76,6 +76,17 @@
     @apply wp-btn border border-ink-200 bg-white text-ink-700 hover:bg-ink-100;
   }
 
+  .wp-btn-danger {
+    @apply wp-btn bg-rose-600 text-white hover:bg-rose-700;
+  }
+
+  /* An input that reads as the heading it replaces, until you click into it. */
+  .wp-title-input {
+    @apply -mx-1 min-w-40 rounded-md border border-transparent px-1 text-xl font-semibold tracking-tight;
+    @apply outline-none hover:border-ink-200 focus:border-ink-900 focus:ring-2 focus:ring-ink-900/10;
+    field-sizing: content;
+  }
+
   .wp-card {
     @apply rounded-lg border border-ink-200 bg-white shadow-xs;
   }

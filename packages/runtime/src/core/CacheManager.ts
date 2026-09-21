@@ -1,4 +1,4 @@
-import type { ConfigEnvelope, VersionEnvelope } from './types.js';
+import type { ConfigEnvelope, VersionEnvelope } from '@web-plugins/protocol/config';
 
 /**
  * Version-first config cache, ported from `CacheManager`: fetch the cheap
